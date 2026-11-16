@@ -337,6 +337,7 @@ class MockEngine(BaseEngine):
         row, col = divmod(i, 5)
         spread = 190 + row * 45
         return {
+            "slot": i,  # koltuk: aynı yere iki kişi oturmasın
             "id": i + 1,
             "x": self.W / 2 + (col - 2) * spread + self.rng.uniform(-18, 18),
             "y": 270 + row * 150,
@@ -364,7 +365,8 @@ class MockEngine(BaseEngine):
         if rng.random() < 0.01 and len(self._agents) > 8:
             self._agents.pop(rng.randrange(len(self._agents)))
         if rng.random() < 0.01 and len(self._agents) < 15:
-            a = self._new_agent(rng.randrange(15))
+            taken = {ag["slot"] for ag in self._agents}
+            a = self._new_agent(rng.choice([i for i in range(15) if i not in taken]))
             a["id"] = self._next_id
             self._next_id += 1
             self._agents.append(a)

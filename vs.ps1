@@ -10,7 +10,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help', 'doctor', 'setup', 'models', 'demo', 'dev', 'serve', 'camera-test', 'lint', 'test', 'check', 'format')]
+  [ValidateSet('help', 'doctor', 'setup', 'models', 'demo', 'dev', 'serve', 'stop', 'camera-test', 'lint', 'test', 'check', 'format')]
   [string]$Task = 'help'
 )
 
@@ -37,6 +37,29 @@ function Test-Tool($name, $hint) {
   return $false
 }
 
+function Stop-VibeSight {
+  # Önceki çalıştırmalardan kalan arka uç pencerelerini ve Vite sunucularını kapatır.
+  $procs = @(Get-CimInstance Win32_Process | Where-Object {
+      $_.ProcessId -ne $PID -and $_.CommandLine -and (
+        $_.CommandLine -like '*uv run vibesight*' -or
+        $_.CommandLine -like '*\Scripts\vibesight*' -or
+        ($_.CommandLine -like '*vite*' -and $_.CommandLine -like "*$Frontend*"))
+    })
+  foreach ($p in $procs) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+  if ($procs.Count) {
+    Ok "Önceki VibeSight süreçleri kapatıldı ($($procs.Count))."
+    Start-Sleep -Seconds 1
+  }
+  foreach ($port in 8000, 5173) {
+    $busy = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if ($busy) {
+      $owner = (Get-Process -Id $busy[0].OwningProcess -ErrorAction SilentlyContinue).ProcessName
+      Fail "$port portu başka bir uygulama tarafından kullanılıyor ($owner). O uygulamayı kapatıp tekrar deneyin."
+      exit 1
+    }
+  }
+}
+
 function Start-Backend([string]$source) {
   $cmd = "Set-Location '$Backend'; "
   if ($source) { $cmd += "`$env:VIBESIGHT_SOURCE='$source'; " }
@@ -55,6 +78,7 @@ VibeSight komutları:
   .\vs.ps1 demo         Kamerasız demo (http://localhost:5173)
   .\vs.ps1 dev          Kamera veya webcam ile geliştirme modu
   .\vs.ps1 serve        Derlenmiş arayüzle tek port (http://127.0.0.1:8000)
+  .\vs.ps1 stop         Çalışan VibeSight süreçlerini kapatır
   .\vs.ps1 camera-test  Tapo kamera bağlantısını test eder
   .\vs.ps1 check        Lint + tip kontrolü + test + derleme
 '@
@@ -88,6 +112,7 @@ VibeSight komutları:
   }
   'demo' {
     Step 'Demo modu'
+    Stop-VibeSight
     Start-Backend 'mock'
     Start-Sleep -Seconds 3
     Start-Process 'http://localhost:5173'
@@ -95,16 +120,22 @@ VibeSight komutları:
   }
   'dev' {
     Step 'Geliştirme modu (.env içindeki kaynak)'
+    Stop-VibeSight
     Start-Backend ''
     Start-Sleep -Seconds 3
     Start-Process 'http://localhost:5173'
     Invoke-In $Frontend { npm run dev }
   }
   'serve' {
+    Stop-VibeSight
     Step 'Arayüz derleniyor'
     Invoke-In $Frontend { npm run build }
     Start-Process 'http://127.0.0.1:8000'
     Invoke-In $Backend { uv run vibesight }
+  }
+  'stop' {
+    Stop-VibeSight
+    Ok 'VibeSight kapalı.'
   }
   'camera-test' {
     Invoke-In $Backend { uv run python ..\scripts\camera_test.py }

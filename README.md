@@ -65,6 +65,7 @@ Kamerayı bağlamak için: [docs/CAMERA_SETUP.md](docs/CAMERA_SETUP.md), ardınd
 | `.\vs.ps1 demo` | `make demo` | Kamerasız demo |
 | `.\vs.ps1 dev` | `make dev` | Kamera/webcam ile çalıştırma |
 | `.\vs.ps1 serve` | `make serve` | Derlenmiş arayüzle tek port: http://127.0.0.1:8000 |
+| `.\vs.ps1 stop` | `Ctrl+C` | Çalışan VibeSight süreçlerini kapatır |
 | `.\vs.ps1 camera-test` | `make camera-test` | Tapo bağlantı testi |
 | `.\vs.ps1 check` | `make check` | Lint + tip kontrolü + test + derleme (push öncesi) |
 

@@ -35,3 +35,13 @@ def test_tapo_url_is_built_and_redacted() -> None:
     url = s.resolved_source()
     assert url == "rtsp://eren:p%40ss%3A1@10.0.0.5:554/stream1"
     assert redact(url) == "rtsp://***:***@10.0.0.5:554/stream1"
+
+
+def test_mock_people_never_share_a_seat(tmp_path: Path) -> None:
+    from vibesight.engine import MockEngine
+
+    engine = MockEngine(Settings(source="mock", db_path=tmp_path / "t.db"))
+    for k in range(3000):  # ~8 dakikalık simülasyon: kişiler girip çıkar
+        engine._step(1_000.0 + k / 6)
+        slots = [a["slot"] for a in engine._agents]
+        assert len(slots) == len(set(slots))
