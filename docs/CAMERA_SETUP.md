@@ -43,13 +43,13 @@ RTSP adresleri:
 
 Test için **VLC**: *Medya → Ağ Akışı Aç* → adresi yapıştırın. Görüntü geliyorsa kamera hazır.
 
-Ya da proje içinden:
-```bash
-make camera-test
+Ya da proje içinden (`backend/.env` doldurulduktan sonra, 5. adım):
+```powershell
+.\vs.ps1 camera-test
 ```
 
 ## 5. VibeSight'ı kameraya bağlayın
-`backend/.env` dosyasını oluşturun (yoksa `cp backend/.env.example backend/.env`) ve doldurun:
+`backend\.env` dosyasını Not Defteri ile açın (`.\vs.ps1 setup` bunu sizin için oluşturur) ve doldurun:
 ```dotenv
 VIBESIGHT_SOURCE=tapo
 VIBESIGHT_TAPO_HOST=192.168.1.50
@@ -57,7 +57,7 @@ VIBESIGHT_TAPO_USER=vibesight
 VIBESIGHT_TAPO_PASSWORD=sizin-sifreniz
 VIBESIGHT_TAPO_STREAM=stream1
 ```
-Sonra `make dev` ile başlatın. Şifre `.env` içinde kalır; bu dosya `.gitignore` sayesinde asla repoya girmez
+Sonra `.\vs.ps1 dev` (macOS/Linux'ta `make dev`) ile başlatın. Şifre `.env` içinde kalır; bu dosya `.gitignore` sayesinde asla repoya girmez
 ve günlüklerde şifre `***` olarak maskelenir.
 
 ## 6. Kamerayı doğru yerleştirin (sonuç kalitesini en çok etkileyen adım)

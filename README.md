@@ -17,45 +17,56 @@ Kişileri sayar, yüz ifadelerini, enerji ve dikkat düzeyini oda bazında özet
 Görüntü kaydedilmez, kimse tanınmaz, hiçbir veri buluta gitmez. Ayrıntılar: [docs/ETHICS_KVKK.md](docs/ETHICS_KVKK.md).
 
 ## Hızlı başlangıç
-Gereksinimler: [uv](https://docs.astral.sh/uv/getting-started/installation/) ve [Node.js 20+](https://nodejs.org).
 
+### Windows
+Önce gerekli araçları kurun (PowerShell'de, bir kez):
+```powershell
+winget install Git.Git OpenJS.NodeJS.LTS
+```
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+PowerShell'i kapatıp yeniden açın, sonra:
+```powershell
+git clone https://github.com/erenkadiroglu/VibeSight.git
+```
+```powershell
+cd VibeSight
+```
+```powershell
+.\vs.ps1 doctor
+```
+```powershell
+.\vs.ps1 setup
+```
+```powershell
+.\vs.ps1 demo
+```
+Tarayıcı http://localhost:5173 adresinde açılır. Demo modu kamera olmadan sentetik bir sınıf gösterir.
+
+### macOS / Linux
+Gereksinimler: [uv](https://docs.astral.sh/uv/getting-started/installation/) ve [Node.js 20+](https://nodejs.org).
 ```bash
 make setup
 ```
-
 ```bash
 make demo
 ```
 
-Tarayıcıda http://localhost:5173 adresini açın. Demo modu kamera olmadan sentetik bir sınıf gösterir.
-
-Kamerayı bağlamak için: [docs/CAMERA_SETUP.md](docs/CAMERA_SETUP.md), ardından `make dev`.
-
-<details>
-<summary>Windows (make olmadan)</summary>
-
-```powershell
-cd backend; uv sync; uv run python ..\scripts\download_models.py; copy .env.example .env
-```
-
-```powershell
-cd backend; uv run vibesight
-```
-
-```powershell
-cd frontend; npm ci; npm run dev
-```
-</details>
+Kamerayı bağlamak için: [docs/CAMERA_SETUP.md](docs/CAMERA_SETUP.md), ardından `.\vs.ps1 dev` (Windows) veya `make dev`.
 
 ## Komutlar
-| Komut | Açıklama |
-|---|---|
-| `make setup` | Bağımlılıklar, modeller, pre-commit |
-| `make demo` | Kamerasız demo |
-| `make dev` | Kamera/webcam ile geliştirme modu |
-| `make serve` | Derlenmiş arayüzle tek port: http://127.0.0.1:8000 |
-| `make camera-test` | Tapo bağlantı testi |
-| `make check` | Lint + tip kontrolü + test + derleme (push öncesi) |
+| Windows | macOS / Linux | Açıklama |
+|---|---|---|
+| `.\vs.ps1 setup` | `make setup` | Bağımlılıklar ve modeller |
+| `.\vs.ps1 demo` | `make demo` | Kamerasız demo |
+| `.\vs.ps1 dev` | `make dev` | Kamera/webcam ile çalıştırma |
+| `.\vs.ps1 serve` | `make serve` | Derlenmiş arayüzle tek port: http://127.0.0.1:8000 |
+| `.\vs.ps1 camera-test` | `make camera-test` | Tapo bağlantı testi |
+| `.\vs.ps1 check` | `make check` | Lint + tip kontrolü + test + derleme (push öncesi) |
 
 `VIBESIGHT_SOURCE` değeri: `mock`, `tapo`, `0` (bilgisayar kamerası), `rtsp://…` veya bir video dosyası yolu.
 
