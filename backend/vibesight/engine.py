@@ -439,14 +439,18 @@ class MockEngine(BaseEngine):
         return base
 
     def _make_background(self) -> np.ndarray:
+        """Sakin, hafif bulanık bir sınıf arka planı (demo içindir; gerçek modda kamera görüntüsü gelir)."""
         y = np.linspace(0, 1, self.H, dtype=np.float32)[:, None, None]
-        top, bottom = np.array([46, 34, 28], np.float32), np.array([20, 16, 14], np.float32)
-        bg = (top * (1 - y) + bottom * y).repeat(self.W, axis=1).astype(np.uint8)
-        for row in range(3):  # sıra çizgileri
-            yy = 270 + row * 150 + 40
-            cv2.line(bg, (0, yy + 60), (self.W, yy + 60), (60, 52, 46), 2, cv2.LINE_AA)
-        cv2.rectangle(bg, (420, 40), (860, 170), (70, 78, 62), -1, cv2.LINE_AA)  # tahta
-        return bg
+        top, bottom = np.array([58, 52, 48], np.float32), np.array([30, 27, 25], np.float32)
+        bg = (top * (1 - y) + bottom * y).repeat(self.W, axis=1)
+        x = np.linspace(-1, 1, self.W, dtype=np.float32)[None, :, None]
+        bg = (bg * (1 - 0.25 * x**2)).astype(np.uint8)  # kenarlara doğru hafif kararma
+        cv2.rectangle(bg, (440, 60), (840, 190), (92, 98, 88), -1, cv2.LINE_AA)  # tahta
+        cv2.rectangle(bg, (1040, 80), (1180, 300), (70, 64, 58), -1, cv2.LINE_AA)  # kapı
+        for row in range(3):  # sıralar
+            yy = 270 + row * 150 + 70
+            cv2.rectangle(bg, (60, yy), (self.W - 60, yy + 14), (64, 58, 54), -1, cv2.LINE_AA)
+        return cv2.GaussianBlur(bg, (0, 0), 3)
 
     def _new_agent(self, i: int) -> dict[str, Any]:
         row, col = divmod(i, 5)
@@ -496,19 +500,22 @@ class MockEngine(BaseEngine):
             s = a["scale"]
             cx, cy = a["x"] + sway, a["y"]
             box = np.array([cx - 42 * s, cy - 70 * s, cx + 42 * s, cy + 95 * s], np.float32)
-            color = (88 + a["id"] * 7 % 40, 92, 104)
+            shade = 70 + a["id"] * 11 % 50
+            color = (shade + 20, shade + 10, shade)  # gövde: kıyafet tonları
+            body_c, body_r = (int(cx), int(cy + 60 * s)), (int(44 * s), int(52 * s))
+            cv2.ellipse(img, body_c, body_r, 0, 180, 360, color, -1, cv2.LINE_AA)
+            cv2.circle(img, (int(cx), int(cy - 28 * s)), int(27 * s), (128, 150, 178), -1, cv2.LINE_AA)
             cv2.ellipse(
                 img,
-                (int(cx), int(cy + 60 * s)),
-                (int(44 * s), int(52 * s)),
+                (int(cx), int(cy - 36 * s)),
+                (int(28 * s), int(22 * s)),
                 0,
                 180,
                 360,
-                color,
+                (40, 44, 52),
                 -1,
                 cv2.LINE_AA,
-            )
-            cv2.circle(img, (int(cx), int(cy - 28 * s)), int(28 * s), (150, 170, 196), -1, cv2.LINE_AA)
+            )  # saç
             boxes[a["id"]] = box
             ids.append(a["id"])
 
@@ -539,6 +546,7 @@ class MockEngine(BaseEngine):
             prev = person.engagement if person.engagement is not None else target
             person.engagement = min(1.0, max(0.0, 0.9 * prev + 0.1 * target + rng.uniform(-0.03, 0.03)))
 
+        img = cv2.GaussianBlur(img, (0, 0), 1.2)  # kamera görüntüsü gibi hafif yumuşaklık
         with self._img_lock:
             self._image = img
             self._index += 1

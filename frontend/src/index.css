@@ -1,63 +1,63 @@
-@import '@fontsource-variable/bricolage-grotesque';
-@import '@fontsource-variable/atkinson-hyperlegible-next';
+@import '@fontsource-variable/inter';
 @import 'tailwindcss';
 
 /*
- * VibeSight tasarım token'ları
- * Koyu tema "kara tahta": yeşilimsi arduvaz zemin, tebeşir beyazı metin.
- * Açık tema "kâğıt": hafif soğuk kâğıt beyazı, mürekkep metin.
- * Grafik serileri (enerji = kehribar, dikkat = mavi) her tema için ayrı ayrı doğrulandı
- * (OKLCH bant, kroma, renk körlüğü ΔE ≥ 21, yüzeye kontrast ≥ 3:1).
+ * VibeSight tasarım token'ları — sade, Apple tarzı.
+ * Açık tema: #f5f5f7 zemin, beyaz kartlar. Koyu tema: saf siyah zemin, #1c1c1e kartlar (projeksiyon / karanlık oda).
+ * Grafik serileri (enerji = turuncu, katılım = mavi) her tema için ayrı doğrulandı
+ * (OKLCH bant, kroma, renk körlüğü ΔE ≥ 27, yüzeye kontrast ≥ 3:1).
  */
 :root,
-[data-theme='dark'] {
-  --board: #18211e;
-  --board-raised: #1f2a26;
-  --board-sunken: #121916;
-  --line: #2c3934;
-  --line-strong: #3b4a44;
-  --chalk: #e9ece4;
-  --chalk-2: #b9c2bc;
-  --chalk-3: #8d9993;
-  --highlight: #f2d16b;
-  --series-energy: #b88a18;
-  --series-attention: #4f9ad8;
-  --bar: #4f9ad8;
-  --bar-muted: #34514a;
-  --tone-positive: #6cc49a;
-  --tone-focused: #7ab3e6;
-  --tone-calm: #b6b0dd;
-  --tone-tired: #e3b25b;
-  --tone-tense: #ef8a7a;
-  --tone-unknown: #8d9993;
-  --overlay-ink: #0f1513;
-  --video-bg: #0e1412;
-  color-scheme: dark;
+[data-theme='light'] {
+  --board: #f5f5f7;
+  --board-raised: #ffffff;
+  --board-sunken: #ececf0;
+  --line: #e3e3e8;
+  --line-strong: #d2d2d7;
+  --chalk: #1d1d1f;
+  --chalk-2: #424245;
+  --chalk-3: #6e6e73;
+  --highlight: #0066cc;
+  --series-energy: #c25e00;
+  --series-attention: #0066cc;
+  --bar: #0066cc;
+  --bar-muted: #d2d2d7;
+  --tone-positive: #1d8a3a;
+  --tone-focused: #0066cc;
+  --tone-calm: #5e5ce6;
+  --tone-tired: #b25000;
+  --tone-tense: #d70015;
+  --tone-unknown: #6e6e73;
+  --overlay-ink: #000000;
+  --video-bg: #000000;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.04);
+  color-scheme: light;
 }
 
-[data-theme='light'] {
-  --board: #fbfbf8;
-  --board-raised: #ffffff;
-  --board-sunken: #f0f2ec;
-  --line: #e0e4dc;
-  --line-strong: #c9cfc6;
-  --chalk: #1c2421;
-  --chalk-2: #46524d;
-  --chalk-3: #5d6863; /* #f0f2ec üzerinde ≥ 4.5:1 (axe denetimi) */
-  --highlight: #8a6a00;
-  --series-energy: #b07c00;
-  --series-attention: #2f6fa8;
-  --bar: #2f6fa8;
-  --bar-muted: #c9d8e6;
-  --tone-positive: #1f7a4f;
-  --tone-focused: #2a64a0;
-  --tone-calm: #5d55a0;
-  --tone-tired: #93600a;
-  --tone-tense: #b23b2a;
-  --tone-unknown: #6a7570;
-  --overlay-ink: #0f1513;
-  --video-bg: #1a211e;
-  color-scheme: light;
+[data-theme='dark'] {
+  --board: #000000;
+  --board-raised: #1c1c1e;
+  --board-sunken: #2c2c2e;
+  --line: #2c2c2e;
+  --line-strong: #3a3a3c;
+  --chalk: #f5f5f7;
+  --chalk-2: #d1d1d6;
+  --chalk-3: #98989d;
+  --highlight: #2f8fff;
+  --series-energy: #d07a0a;
+  --series-attention: #2f8fff;
+  --bar: #2f8fff;
+  --bar-muted: #3a3a3c;
+  --tone-positive: #30d158;
+  --tone-focused: #2f8fff;
+  --tone-calm: #8e8cff;
+  --tone-tired: #ff9f0a;
+  --tone-tense: #ff6961;
+  --tone-unknown: #98989d;
+  --overlay-ink: #000000;
+  --video-bg: #000000;
+  --shadow-card: none;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -72,8 +72,8 @@
   --color-highlight: var(--highlight);
   --color-energy: var(--series-energy);
   --color-attention: var(--series-attention);
-  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 @layer base {
@@ -83,6 +83,7 @@
     font-family: var(--font-sans);
     font-size: 16px;
     line-height: 1.5;
+    font-feature-settings: 'cv11' 1, 'ss01' 1;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -103,12 +104,25 @@
   .numeric {
     font-family: var(--font-display);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum' 1;
+    font-feature-settings: 'tnum' 1, 'cv11' 1;
+    letter-spacing: -0.02em;
   }
   .display {
     font-family: var(--font-display);
-    font-optical-sizing: auto;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.022em;
+  }
+  /* Apple tarzı kart: kenarlıksız, yumuşak köşe, çok hafif gölge */
+  .card {
+    background: var(--board-raised);
+    border-radius: 1.5rem;
+    box-shadow: var(--shadow-card);
+  }
+  /* Görüntü üstündeki cam efektli öğeler */
+  .glass {
+    background: rgb(28 28 30 / 0.55);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    color: #fff;
   }
 }
 

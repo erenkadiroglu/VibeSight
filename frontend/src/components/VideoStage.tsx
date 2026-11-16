@@ -1,10 +1,8 @@
 import clsx from 'clsx'
-import { EyeOff, Maximize2, ScanFace, Square, Video, WifiOff } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { EyeOff, ScanFace, Square, WifiOff } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import type { Connection } from '../lib/live'
-import { num } from '../lib/format'
-import type { EngineStatus, LabelMeta, Point, Snapshot } from '../lib/types'
-import { FullscreenHud } from './FullscreenHud'
+import type { EngineStatus, LabelMeta, Snapshot } from '../lib/types'
 import { PersonDetail } from './PersonDetail'
 
 interface Props {
@@ -15,121 +13,115 @@ interface Props {
   status: EngineStatus | null
   onPrivacy: (on: boolean) => void
   labels: LabelMeta[]
-  series: Point[]
+  className?: string
 }
 
-export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, onPrivacy, labels, series }: Props) {
+/**
+ * Canlı görüntü kartı. Görüntü, oranı bozulmadan kartın içine sığdırılır; kutular ve etiketler
+ * aynı çerçeveye yerleştirildiği için her boyutta (projeksiyon, tam ekran) görüntüyle hizalı kalır.
+ */
+export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, onPrivacy, labels, className }: Props) {
   const [overlay, setOverlay] = useState(true)
   const [selected, setSelected] = useState<number | null>(null)
-  const stage = useRef<HTMLDivElement>(null)
   const area = useRef<HTMLDivElement>(null)
   const aspect = frameSize ? frameSize.w / frameSize.h : 16 / 9
-  const fs = useFullscreen(stage)
-  const fit = useFitBox(area, aspect, fs.active)
+  const fit = useFitBox(area, aspect)
   const privacy = status?.privacy_blur ?? false
   const source = status?.source
   const live = connection === 'open' && source?.status === 'live' && frameUrl
 
   return (
-    <section aria-label="Canlı görüntü" className="relative flex flex-col gap-3">
+    <section aria-label="Canlı görüntü" className={clsx('relative min-h-0', className)}>
       <div
-        ref={stage}
-        data-theme={fs.active ? 'dark' : undefined}
-        className={
-          fs.active
-            ? 'flex h-full w-full bg-[var(--video-bg)] text-chalk'
-            : 'relative w-full overflow-hidden rounded-2xl bg-[var(--video-bg)] ring-1 ring-line'
-        }
-        style={fs.active ? undefined : { aspectRatio: aspect }}
+        ref={area}
+        className="relative flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden rounded-[1.75rem] bg-[var(--video-bg)] ring-1 ring-white/10"
       >
-        <div ref={area} className={fs.active ? 'flex min-w-0 flex-1 items-center justify-center p-6' : 'absolute inset-0'}>
-          <div
-            className={clsx('relative overflow-hidden', fs.active ? 'rounded-xl' : 'h-full w-full')}
-            style={fs.active ? { width: fit.w, height: fit.h } : undefined}
-          >
-        {frameUrl && (
-          <img
-            src={frameUrl}
-            alt="Kameradan canlı görüntü"
-            className={clsx('absolute inset-0 h-full w-full object-cover', !live && 'opacity-40 grayscale')}
-            draggable={false}
-          />
-        )}
+        <div className="relative" style={{ width: fit.w, height: fit.h }}>
+          {frameUrl && (
+            <img
+              src={frameUrl}
+              alt="Kameradan canlı görüntü"
+              className={clsx('absolute inset-0 h-full w-full', !live && 'opacity-40 grayscale')}
+              draggable={false}
+            />
+          )}
 
-        {overlay && live && snapshot && (
-          <div className="pointer-events-none absolute inset-0">
-            {snapshot.people.map((p) => {
-              const [x1, y1, x2, y2] = p.box
-              const hasFace = p.emotion_label != null
-              const compact = x2 - x1 < 0.09
-              return (
-                <div
-                  key={p.id}
-                  className="absolute transition-[left,top,width,height] duration-150 ease-linear"
-                  style={{
-                    left: `${x1 * 100}%`,
-                    top: `${y1 * 100}%`,
-                    width: `${(x2 - x1) * 100}%`,
-                    height: `${(y2 - y1) * 100}%`,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSelected((cur) => (cur === p.id ? null : p.id))}
-                    aria-pressed={selected === p.id}
-                    aria-label={`Kişi ${p.id}${p.emotion_label ? `, ${p.emotion_label}` : ''}: ayrıntıları göster`}
-                    className={clsx(
-                      'pointer-events-auto absolute inset-0 cursor-pointer rounded-md border transition-colors',
-                      selected === p.id
-                        ? 'border-2 border-[#f2d16b] bg-[#f2d16b]/5'
-                        : hasFace
-                          ? 'border-white/80 hover:bg-white/5'
-                          : 'border-dashed border-white/45 hover:bg-white/5',
-                    )}
-                  />
-                  <div className="absolute bottom-full left-0 mb-1 hidden items-center sm:flex gap-1.5 whitespace-nowrap rounded-md bg-[var(--overlay-ink)]/85 px-1.5 py-0.5 text-[11px] leading-4 text-white/95 backdrop-blur-sm">
-                    <span className="numeric text-white/60">{p.id}</span>
-                    {hasFace ? (
-                      <>
-                        <span className="font-semibold">{p.emotion_label}</span>
-                        {p.energy != null && !compact && <EnergyPip value={p.energy} />}
-                        {p.attentive === false && <EyeOff className="size-3 text-white/70" aria-label="Başka yöne bakıyor" />}
-                      </>
-                    ) : (
-                      <span className="text-white/60">{compact ? 'yüz yok' : 'yüz görünmüyor'}</span>
+          {overlay && live && snapshot && (
+            <div className="pointer-events-none absolute inset-0">
+              {snapshot.people.map((p) => {
+                const [x1, y1, x2, y2] = p.box
+                const hasFace = p.emotion_label != null
+                const isSel = selected === p.id
+                return (
+                  <div
+                    key={p.id}
+                    className="absolute transition-[left,top,width,height] duration-150 ease-linear"
+                    style={{
+                      left: `${x1 * 100}%`,
+                      top: `${y1 * 100}%`,
+                      width: `${(x2 - x1) * 100}%`,
+                      height: `${(y2 - y1) * 100}%`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelected((cur) => (cur === p.id ? null : p.id))}
+                      aria-pressed={isSel}
+                      aria-label={`Kişi ${p.id}${p.emotion_label ? `, ${p.emotion_label}` : ''}: ayrıntıları göster`}
+                      className={clsx(
+                        'pointer-events-auto absolute inset-0 cursor-pointer rounded-2xl transition-[box-shadow,background-color]',
+                        isSel
+                          ? 'bg-white/10 shadow-[inset_0_0_0_3px_#ffffff]'
+                          : hasFace
+                            ? 'shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.85)] hover:bg-white/5'
+                            : 'shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.35)] hover:bg-white/5',
+                      )}
+                    />
+                    {hasFace && (
+                      <div className="glass absolute bottom-full left-0 mb-1.5 hidden items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] font-medium leading-none sm:flex">
+                        {p.emotion_label}
+                        {p.attentive === false && <EyeOff className="size-3.5 opacity-75" aria-label="Başka yöne bakıyor" />}
+                      </div>
                     )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
 
-        {selected != null && live && (
-          <div className="hidden sm:block">
-            <PersonDetail
-              id={selected}
-              person={snapshot?.people.find((p) => p.id === selected)}
-              labels={labels}
-              onClose={() => setSelected(null)}
-            />
-          </div>
-        )}
+          {selected != null && live && (
+            <div className="hidden sm:block">
+              <PersonDetail
+                id={selected}
+                person={snapshot?.people.find((p) => p.id === selected)}
+                labels={labels}
+                onClose={() => setSelected(null)}
+              />
+            </div>
+          )}
+        </div>
 
         {!live && <StageMessage connection={connection} sourceStatus={source?.status} hasFrame={!!frameUrl} />}
 
-        {live && status?.mode === 'mock' && (
-          <div className="absolute left-3 top-3 rounded-full bg-[var(--overlay-ink)]/80 px-3 py-1 text-xs font-semibold text-[#f2d16b] ring-1 ring-[#f2d16b]/40">
-            Demo verisi, kamera bağlı değil
+        {live && (
+          <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
+            <div className="glass flex items-center gap-1 rounded-full p-1" role="group" aria-label="Görüntü seçenekleri">
+              <GlassToggle pressed={overlay} onClick={() => setOverlay((v) => !v)} icon={<Square className="size-4" />}>
+                Kutular
+              </GlassToggle>
+              <GlassToggle pressed={privacy} onClick={() => onPrivacy(!privacy)} icon={<ScanFace className="size-4" />}>
+                Yüzleri gizle
+              </GlassToggle>
+            </div>
+            <p className="glass hidden rounded-full px-3.5 py-2 text-[13px] text-white/80 md:block">
+              {status?.mode === 'mock' ? 'Demo verisi, kamera bağlı değil' : source?.label}
+            </p>
           </div>
         )}
-          </div>
-        </div>
-        {fs.active && <FullscreenHud snapshot={snapshot} series={series} labels={labels} status={status} />}
       </div>
 
-      {selected != null && live && !fs.active && (
-        <div className="sm:hidden">
+      {selected != null && live && (
+        <div className="mt-4 sm:hidden">
           <PersonDetail
             id={selected}
             person={snapshot?.people.find((p) => p.id === selected)}
@@ -138,54 +130,11 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
           />
         </div>
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-chalk-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Video className="size-4 shrink-0 text-chalk-3" aria-hidden />
-          <span className="truncate">{source?.label ?? 'Kaynak bekleniyor'}</span>
-          {source?.resolution && (
-            <span className="numeric shrink-0 text-chalk-3">
-              {source.resolution[0]}×{source.resolution[1]}
-            </span>
-          )}
-          {live && overlay && (snapshot?.people.length ?? 0) > 0 && selected == null && (
-            <span className="hidden shrink-0 border-l border-line pl-2 text-chalk-3 lg:inline">Ayrıntı için bir kutuya tıklayın</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1" role="group" aria-label="Görüntü seçenekleri">
-          <ToggleButton pressed={overlay} onClick={() => setOverlay((v) => !v)} icon={<Square className="size-4" />}>
-            Kutular
-          </ToggleButton>
-          <ToggleButton pressed={privacy} onClick={() => onPrivacy(!privacy)} icon={<ScanFace className="size-4" />}>
-            Yüzleri gizle
-          </ToggleButton>
-          <button
-            type="button"
-            onClick={fs.toggle}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-chalk-2 hover:bg-raised hover:text-chalk"
-            title="Tam ekran: görüntü ve canlı veriler (kısayol: F)"
-          >
-            <Maximize2 className="size-4" aria-hidden />
-            Tam ekran
-          </button>
-        </div>
-      </div>
     </section>
   )
 }
 
-function EnergyPip({ value }: { value: number }) {
-  return (
-    <span className="flex items-center gap-1" title={`Enerji ${num(value)}`}>
-      <span className="relative h-1.5 w-8 overflow-hidden rounded-full bg-white/20">
-        <span className="absolute inset-y-0 left-0 rounded-full bg-[#e0b23a]" style={{ width: `${value}%` }} />
-      </span>
-      <span className="numeric text-white/75">{num(value)}</span>
-    </span>
-  )
-}
-
-function ToggleButton({
+function GlassToggle({
   pressed,
   onClick,
   icon,
@@ -202,8 +151,8 @@ function ToggleButton({
       aria-pressed={pressed}
       onClick={onClick}
       className={clsx(
-        'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 transition-colors',
-        pressed ? 'bg-raised text-chalk ring-1 ring-line-strong' : 'text-chalk-2 hover:bg-raised hover:text-chalk',
+        'inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-medium transition-colors',
+        pressed ? 'bg-white text-black' : 'text-white/85 hover:bg-white/15',
       )}
     >
       {icon}
@@ -221,14 +170,14 @@ function StageMessage({
   sourceStatus?: string
   hasFrame: boolean
 }) {
-  let title = 'Sunucuya bağlanılıyor'
+  let title = 'Bağlanılıyor'
   let body = 'Analiz sunucusu başlatılıyor. Birkaç saniye sürebilir.'
   if (connection === 'closed') {
     title = 'Sunucuya ulaşılamıyor'
-    body = 'Arka uç çalışmıyor olabilir. PowerShell\'de .\\vs.ps1 dev komutunu çalıştırın; bağlantı kendiliğinden yenilenecek.'
+    body = "PowerShell'de .\\vs.ps1 dev komutunu çalıştırın; bağlantı kendiliğinden yenilenecek."
   } else if (connection === 'open' && sourceStatus === 'reconnecting') {
     title = 'Kameraya yeniden bağlanılıyor'
-    body = 'Kamera ile aynı Wi-Fi ağında olduğunuzu ve .env dosyasındaki IP, kullanıcı adı ve şifrenin doğru olduğunu kontrol edin.'
+    body = 'Kamera ile aynı Wi-Fi ağında olduğunuzu ve .env dosyasındaki IP, kullanıcı adı ve şifreyi kontrol edin.'
   } else if (connection === 'open') {
     title = 'Görüntü bekleniyor'
     body = 'Kaynak açıldı, ilk kare geliyor.'
@@ -237,62 +186,37 @@ function StageMessage({
     <div
       className={clsx(
         'absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center',
-        hasFrame && 'bg-[var(--video-bg)]/60',
+        hasFrame && 'bg-black/60',
       )}
       role="status"
     >
       {connection === 'closed' || sourceStatus === 'reconnecting' ? (
         <WifiOff className="size-7 text-white/60" aria-hidden />
       ) : (
-        <span className="beat block size-3 rounded-full bg-[#f2d16b]" aria-hidden />
+        <span className="beat block size-3 rounded-full bg-white/80" aria-hidden />
       )}
-      <p className="display text-xl font-semibold text-white/90">{title}</p>
-      <p className="max-w-md text-sm text-white/65">{body}</p>
+      <p className="display text-2xl font-semibold text-white">{title}</p>
+      <p className="max-w-md text-[15px] text-white/65">{body}</p>
     </div>
   )
 }
 
-/** Tam ekran durumu + F kısayolu. */
-function useFullscreen(target: React.RefObject<HTMLElement | null>) {
-  const [active, setActive] = useState(false)
-  useEffect(() => {
-    const onChange = () => setActive(document.fullscreenElement === target.current)
-    document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
-  }, [target])
-  const toggle = useCallback(() => {
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void target.current?.requestFullscreen?.()
-  }, [target])
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null
-      if (e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey) return
-      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
-      toggle()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [toggle])
-  return { active, toggle }
-}
-
-/** Tam ekranda görüntüyü oranını bozmadan alana sığdırır (kutular görüntüyle hizalı kalsın). */
-function useFitBox(area: React.RefObject<HTMLElement | null>, aspect: number, enabled: boolean) {
+/** Görüntüyü oranını bozmadan alana sığdırır (kutular görüntüyle hizalı kalsın). */
+function useFitBox(area: React.RefObject<HTMLElement | null>, aspect: number) {
   const [box, setBox] = useState({ w: 0, h: 0 })
   useEffect(() => {
-    if (!enabled || !area.current) return
+    if (!area.current) return
     const el = area.current
     const update = () => {
-      const cs = getComputedStyle(el)
-      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
-      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      const w = el.clientWidth
+      const h = el.clientHeight
+      if (!w || !h) return
       setBox(w / h > aspect ? { w: h * aspect, h } : { w, h: w / aspect })
     }
     const ro = new ResizeObserver(update)
     ro.observe(el)
     update()
     return () => ro.disconnect()
-  }, [area, aspect, enabled])
+  }, [area, aspect])
   return box
 }

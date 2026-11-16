@@ -94,7 +94,7 @@ export function PulseChart({ series }: { series: Point[] }) {
           <p className="text-sm text-chalk-3">0–100 ölçeğinde, saniyelik ortalama</p>
         </div>
         <div className="flex items-center gap-2">
-          <div role="radiogroup" aria-label="Zaman aralığı" className="flex rounded-lg bg-sunken p-0.5 ring-1 ring-line">
+          <div role="radiogroup" aria-label="Zaman aralığı" className="flex rounded-full bg-sunken p-1">
             {RANGES.map((r) => (
               <button
                 key={r.s}
@@ -103,8 +103,8 @@ export function PulseChart({ series }: { series: Point[] }) {
                 aria-checked={range === r.s}
                 onClick={() => setRange(r.s)}
                 className={clsx(
-                  'h-8 rounded-md px-3 text-sm transition-colors',
-                  range === r.s ? 'bg-raised text-chalk shadow-sm ring-1 ring-line-strong' : 'text-chalk-3 hover:text-chalk',
+                  'h-8 rounded-full px-4 text-sm transition-colors',
+                  range === r.s ? 'bg-raised text-chalk shadow-sm' : 'text-chalk-2 hover:text-chalk',
                 )}
               >
                 {r.label}
@@ -116,8 +116,8 @@ export function PulseChart({ series }: { series: Point[] }) {
             aria-pressed={showTable}
             onClick={() => setShowTable((v) => !v)}
             className={clsx(
-              'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm',
-              showTable ? 'bg-raised text-chalk ring-1 ring-line-strong' : 'text-chalk-3 hover:bg-raised hover:text-chalk',
+              'inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm',
+              showTable ? 'bg-sunken text-chalk' : 'text-chalk-3 hover:bg-sunken hover:text-chalk',
             )}
           >
             <Table2 className="size-4" aria-hidden />

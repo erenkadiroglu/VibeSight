@@ -135,7 +135,7 @@ export function AffectPlane({ snapshot, series, labels }: { snapshot: Snapshot |
             )}
           </svg>
         )}
-        <p className="mt-2 text-[13px] text-chalk-3">Sarı nokta odanın şu anki konumu, soluk iz son 90 saniye.</p>
+        <p className="mt-2 text-[13px] text-chalk-3">Nokta odanın şu anki konumu, soluk iz son 90 saniye.</p>
       </div>
     </section>
   )

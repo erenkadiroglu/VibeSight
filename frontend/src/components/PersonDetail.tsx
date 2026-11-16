@@ -23,7 +23,7 @@ export function PersonDetail({
   return (
     <aside
       aria-label={`Kişi ${id} ayrıntıları`}
-      className="z-20 w-full rounded-xl bg-raised/95 p-4 text-sm text-chalk shadow-xl ring-1 ring-line-strong backdrop-blur sm:absolute sm:right-3 sm:top-3 sm:max-h-[calc(100%-1.5rem)] sm:w-72 sm:overflow-y-auto"
+      className="z-20 w-full rounded-3xl bg-raised/95 p-5 text-sm text-chalk shadow-2xl backdrop-blur-xl sm:absolute sm:right-3 sm:top-3 sm:max-h-[calc(100%-1.5rem)] sm:w-72 sm:overflow-y-auto"
     >
       <div className="flex items-center justify-between">
         <h3 className="display text-base font-semibold">Kişi {id}</h3>
