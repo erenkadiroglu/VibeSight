@@ -11,16 +11,28 @@
 | Kayıp | Soft-label çapraz entropi + label smoothing + sınıf ağırlıkları, MixUp |
 | Kalibrasyon | Doğrulama kümesinde sıcaklık ölçekleme (Guo ve ark., 2017) |
 | Değerlendirme | FER+ PrivateTest: doğruluk, macro-F1, NLL, ECE, sınıf bazında recall |
-| Hedef | Doğruluk ≥ %85, macro-F1 ≥ 0.65 |
+| Hedef | Doğruluk ≥ %85 (ulaşılan: %83.4), macro-F1 ≥ 0.65 (ulaşılan: 0.698) |
 | Biçim | ONNX (opset 17), PyTorch ile çıktı farkı < 1e-3 doğrulanır |
 
 ## Sonuçlar
 | Deneme | Ayarlar | Doğrulama (en iyi) | Test doğruluk | Test macro-F1 | ECE |
 |---|---|---|---|---|---|
 | 1 | ConvNeXt-Tiny, 35 epoch, EMA yok | %84.99 (13. epoch) | %83.64 | 0.704 | 0.025 |
-| 2 | ConvNeXt-Tiny, 20 epoch, EMA 0.998 | *çalışıyor* | | | |
+| **2 (kullanılan)** | ConvNeXt-Tiny, 35 epoch, EMA 0.998 | %84.85 (10. epoch, EMA) | **%83.39** | **0.698** | 0.033 |
 
-Deneme 1'de doğrulama doğruluğu 13. epoch'tan sonra yükselmedi; deneme 2'de eğitim kısaltıldı ve ağırlık ortalaması (EMA) eklendi.
+İki deneme arasındaki fark gürültü düzeyindedir; model FER+ testinde yaklaşık %83.5'te dengelenir.
+Sıcaklık ölçekleme (T = 0.62) kalibrasyon hatasını 0.114'ten 0.033'e indirmiştir.
+
+### Sınıf bazında recall (deneme 2, test)
+| Nötr | Mutlu | Şaşkın | Üzgün | Kızgın | Hoşnutsuz | Endişeli | Küçümseyen |
+|---|---|---|---|---|---|---|---|
+| 0.815 | 0.917 | 0.863 | 0.754 | 0.809 | 0.773 | 0.707 | 0.462 |
+
+En sık karışmalar: üzgün ↔ nötr (0.12 / 0.11), korku → şaşkın (0.17), küçümseme → nötr ve iğrenme (0.15).
+
+### Olası iyileştirmeler
+- 160×160 giriş çözünürlüğü, RAF-DB ile ek eğitim (gerçek dünya görüntüleri)
+- Birkaç modelin topluluk (ensemble) ortalaması
 
 ## Bilinen sınırlamalar
 - FER2013 düşük çözünürlüklü, ağırlıklı olarak web'den toplanmış, poz verilmiş ifadeler içerir;
