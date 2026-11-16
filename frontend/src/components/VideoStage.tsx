@@ -3,7 +3,8 @@ import { EyeOff, Maximize2, ScanFace, Square, Video, WifiOff } from 'lucide-reac
 import { useRef, useState } from 'react'
 import type { Connection } from '../lib/live'
 import { num } from '../lib/format'
-import type { EngineStatus, Snapshot } from '../lib/types'
+import type { EngineStatus, LabelMeta, Snapshot } from '../lib/types'
+import { PersonDetail } from './PersonDetail'
 
 interface Props {
   connection: Connection
@@ -12,10 +13,12 @@ interface Props {
   snapshot: Snapshot | null
   status: EngineStatus | null
   onPrivacy: (on: boolean) => void
+  labels: LabelMeta[]
 }
 
-export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, onPrivacy }: Props) {
+export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, onPrivacy, labels }: Props) {
   const [overlay, setOverlay] = useState(true)
+  const [selected, setSelected] = useState<number | null>(null)
   const stage = useRef<HTMLDivElement>(null)
   const aspect = frameSize ? frameSize.w / frameSize.h : 16 / 9
   const privacy = status?.privacy_blur ?? false
@@ -23,7 +26,7 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
   const live = connection === 'open' && source?.status === 'live' && frameUrl
 
   return (
-    <section aria-label="Canlı görüntü" className="flex flex-col gap-3">
+    <section aria-label="Canlı görüntü" className="relative flex flex-col gap-3">
       <div
         ref={stage}
         className="relative w-full overflow-hidden rounded-2xl bg-[var(--video-bg)] ring-1 ring-line"
@@ -39,7 +42,7 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
         )}
 
         {overlay && live && snapshot && (
-          <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="pointer-events-none absolute inset-0">
             {snapshot.people.map((p) => {
               const [x1, y1, x2, y2] = p.box
               const hasFace = p.emotion_label != null
@@ -55,10 +58,18 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
                     height: `${(y2 - y1) * 100}%`,
                   }}
                 >
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => setSelected((cur) => (cur === p.id ? null : p.id))}
+                    aria-pressed={selected === p.id}
+                    aria-label={`Kişi ${p.id}${p.emotion_label ? `, ${p.emotion_label}` : ''}: ayrıntıları göster`}
                     className={clsx(
-                      'absolute inset-0 rounded-md border',
-                      hasFace ? 'border-white/80' : 'border-dashed border-white/45',
+                      'pointer-events-auto absolute inset-0 cursor-pointer rounded-md border transition-colors',
+                      selected === p.id
+                        ? 'border-2 border-[#f2d16b] bg-[#f2d16b]/5'
+                        : hasFace
+                          ? 'border-white/80 hover:bg-white/5'
+                          : 'border-dashed border-white/45 hover:bg-white/5',
                     )}
                   />
                   <div className="absolute bottom-full left-0 mb-1 hidden items-center sm:flex gap-1.5 whitespace-nowrap rounded-md bg-[var(--overlay-ink)]/85 px-1.5 py-0.5 text-[11px] leading-4 text-white/95 backdrop-blur-sm">
@@ -79,6 +90,15 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
           </div>
         )}
 
+        {selected != null && live && (
+          <PersonDetail
+            id={selected}
+            person={snapshot?.people.find((p) => p.id === selected)}
+            labels={labels}
+            onClose={() => setSelected(null)}
+          />
+        )}
+
         {!live && <StageMessage connection={connection} sourceStatus={source?.status} hasFrame={!!frameUrl} />}
 
         {live && status?.mode === 'mock' && (
@@ -92,6 +112,9 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
         <div className="flex min-w-0 items-center gap-2">
           <Video className="size-4 shrink-0 text-chalk-3" aria-hidden />
           <span className="truncate">{source?.label ?? 'Kaynak bekleniyor'}</span>
+          {live && overlay && (snapshot?.people.length ?? 0) > 0 && selected == null && (
+            <span className="hidden shrink-0 text-chalk-3 md:inline">Ayrıntı için bir kutuya tıklayın</span>
+          )}
           {source?.resolution && (
             <span className="numeric shrink-0 text-chalk-3">
               {source.resolution[0]}×{source.resolution[1]}

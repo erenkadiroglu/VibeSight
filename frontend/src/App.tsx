@@ -39,6 +39,7 @@ export default function App() {
             snapshot={live.snapshot}
             status={live.status}
             onPrivacy={live.setPrivacy}
+            labels={labels}
           />
           <AtmospherePanel snapshot={live.snapshot} series={live.series} />
         </div>

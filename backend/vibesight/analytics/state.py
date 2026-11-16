@@ -25,8 +25,15 @@ FACE_STALE_S = 3.0
 ATTENTION_MAX_YAW = 25.0
 ATTENTION_MIN_PITCH = -20.0
 
-# Enerji endeksi ağırlıkları (docs/PLAN.md §2.3)
-W_AROUSAL, W_ALERT, W_MOTION, W_NO_YAWN = 0.40, 0.35, 0.15, 0.10
+# Enerji endeksi (docs/PLAN.md §2.3):
+#   canlılık = 0.6·uyarılmışlık' + 0.4·hareket'          (ifade ve beden ne kadar hareketli)
+#   enerji   = 100 · (0.25 + 0.75·canlılık) · uyanıklık · (esneme varsa 0.8)
+# Ayar noktaları: hareketsiz, nötr, uyanık kişi ≈ 47 (Orta); gülümseyen ve hareketli ≈ 75 (Yüksek);
+# gözleri sık kapanan kişi < 20 (Çok düşük).
+W_AROUSAL, W_MOTION = 0.6, 0.4
+ENERGY_FLOOR = 0.25
+YAWN_PENALTY = 0.8
+POSITIVE_EMOTIONS = {"happiness", "surprise"}
 
 
 def clamp01(x: float) -> float:
@@ -105,15 +112,25 @@ class PersonState:
             return None
         return abs(self.yaw) <= ATTENTION_MAX_YAW and self.pitch >= ATTENTION_MIN_PITCH
 
-    def energy(self, now: float, labels: list[str]) -> float | None:
+    def energy_components(self, now: float, labels: list[str]) -> dict[str, float] | None:
+        """Enerjiyi oluşturan bileşenler (0–1); arayüz bunları kişi ayrıntısında gösterir."""
         if not self.has_face(now):
             return None
         arousal = valence_arousal(self.emotion, labels)[1] if self.emotion is not None else 0.0
-        alert = 1.0 - clamp01(self.perclos / 0.4)
-        motion = clamp01((self.motion or 0.0) / 0.12)
-        no_yawn = 0.0 if self.yawned_recently(now) else 1.0
-        score = W_AROUSAL * (arousal + 1) / 2 + W_ALERT * alert + W_MOTION * motion + W_NO_YAWN * no_yawn
-        return 100.0 * score
+        return {
+            "arousal": (arousal + 1) / 2,
+            "motion": clamp01((self.motion or 0.0) / 0.12),
+            "alertness": 1.0 - clamp01(self.perclos / 0.4),
+            "yawn": 1.0 if self.yawned_recently(now) else 0.0,
+        }
+
+    def energy(self, now: float, labels: list[str]) -> float | None:
+        c = self.energy_components(now, labels)
+        if c is None:
+            return None
+        liveliness = W_AROUSAL * c["arousal"] + W_MOTION * c["motion"]
+        score = (ENERGY_FLOOR + (1 - ENERGY_FLOOR) * liveliness) * c["alertness"]
+        return 100.0 * score * (YAWN_PENALTY if c["yawn"] else 1.0)
 
 
 @dataclass
@@ -132,10 +149,11 @@ def classify_atmosphere(
     arousal: float | None,
     attention: float | None,
     perclos: float | None,
+    dominant: str | None = None,
 ) -> Atmosphere:
     if faces == 0 or energy is None:
         return Atmosphere("unknown", "Veri bekleniyor", "unknown", "Analiz için yeterli yüz görünmüyor.")
-    if energy < 38 and (perclos or 0) >= 0.2:
+    if energy < 35 and (perclos or 0) >= 0.2:
         return Atmosphere(
             "tired", "Yorgun", "tired", "Göz kapanma oranı yüksek, enerji düşük. Kısa bir mola iyi gelebilir."
         )
@@ -143,13 +161,13 @@ def classify_atmosphere(
         return Atmosphere(
             "tense", "Gergin", "tense", "Olumsuz ve yüksek uyarılmışlık gösteren ifadeler baskın."
         )
-    if valence is not None and valence >= 0.25 and energy >= 55:
+    if dominant in POSITIVE_EMOTIONS and valence is not None and valence >= 0.3 and energy >= 55:
         return Atmosphere(
             "positive", "Pozitif & Enerjik", "positive", "Olumlu ifadeler ve yüksek enerji gözleniyor."
         )
     if (attention or 0) >= 0.65 and energy >= 40:
         return Atmosphere("focused", "Odaklı", "focused", "Çoğunluk ön tarafa dönük ve uyanık görünüyor.")
-    if energy < 45:
+    if energy < 40:
         return Atmosphere("calm", "Sakin / Düşük tempo", "calm", "Enerji ortalamanın altında, ortam durgun.")
     return Atmosphere("balanced", "Dengeli", "focused", "Belirgin bir eğilim yok; ortam dengeli.")
 
@@ -202,7 +220,9 @@ class RoomAggregator:
         motion = [p.motion for t in active_ids if (p := self.people.get(t)) and p.motion is not None]
         activity = clamp01(float(np.mean(motion)) / 0.12) * 100 if motion else None
 
+        dominant = max(distribution, key=lambda k: distribution[k]) if distribution else None
         atmosphere = classify_atmosphere(
+            dominant=dominant,
             faces=len(faced),
             energy=energy,
             valence=valence,
@@ -238,12 +258,23 @@ class RoomAggregator:
                     item["emotion"] = self.labels[i]
                     item["emotion_label"] = LABELS_TR.get(self.labels[i], self.labels[i])
                     item["confidence"] = round(float(p.emotion[i]), 3)
+                    item["probs"] = {
+                        lbl: round(float(v), 3) for lbl, v in zip(self.labels, p.emotion, strict=True)
+                    }
                 e = p.energy(now, self.labels)
                 item["energy"] = round(e, 1) if e is not None else None
                 item["attentive"] = p.attentive
+                # Ayrıntı kartı için ham sinyaller: kullanıcı her sayının nereden geldiğini görebilsin
+                comps = p.energy_components(now, self.labels)
+                item["signals"] = {
+                    "perclos": round(p.perclos, 3),
+                    "yaw": round(p.yaw, 1) if p.yaw is not None else None,
+                    "pitch": round(p.pitch, 1) if p.pitch is not None else None,
+                    "yawns": p.yawns,
+                    **({k: round(v, 3) for k, v in comps.items()} if comps else {}),
+                }
             people_out.append(item)
 
-        dominant = max(distribution, key=lambda k: distribution[k]) if distribution else None
         return {
             "t": now,
             "count": count,

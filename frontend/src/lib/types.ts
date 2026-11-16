@@ -16,6 +16,17 @@ export interface Person {
   confidence?: number
   energy?: number | null
   attentive?: boolean | null
+  probs?: Record<string, number>
+  signals?: {
+    perclos: number
+    yaw: number | null
+    pitch: number | null
+    yawns: number
+    arousal?: number
+    motion?: number
+    alertness?: number
+    yawn?: number
+  }
 }
 
 export interface Snapshot {

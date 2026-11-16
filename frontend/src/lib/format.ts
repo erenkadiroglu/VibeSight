@@ -22,8 +22,8 @@ export const toneVar = (tone: Tone) => `var(--tone-${tone})`
 
 export function energyWord(e: number | null | undefined) {
   if (e == null) return 'Ölçülemiyor'
-  if (e >= 70) return 'Yüksek'
-  if (e >= 50) return 'Orta'
-  if (e >= 35) return 'Düşük'
+  if (e >= 65) return 'Yüksek'
+  if (e >= 45) return 'Orta'
+  if (e >= 30) return 'Düşük'
   return 'Çok düşük'
 }

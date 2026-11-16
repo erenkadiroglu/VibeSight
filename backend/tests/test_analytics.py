@@ -44,7 +44,7 @@ def test_perclos_and_energy_drop_when_eyes_closed() -> None:
     feed(sleepy, 0, 50, blink=0.9, label="sadness")
     assert alert.perclos == 0.0
     assert sleepy.perclos == 1.0
-    assert alert.energy(10, FERPLUS_LABELS) > 70 > 30 > sleepy.energy(10, FERPLUS_LABELS)
+    assert alert.energy(10, FERPLUS_LABELS) > 55 > 20 > sleepy.energy(10, FERPLUS_LABELS)
 
 
 def test_yawn_requires_sustained_jaw_open() -> None:
@@ -60,7 +60,13 @@ def test_atmosphere_rules() -> None:
     assert classify_atmosphere(energy=None, valence=None, arousal=None, **kw).key == "unknown"
     assert classify_atmosphere(energy=30, valence=0, arousal=0, **{**kw, "perclos": 0.4}).key == "tired"
     assert classify_atmosphere(energy=60, valence=-0.5, arousal=0.6, **kw).key == "tense"
-    assert classify_atmosphere(energy=70, valence=0.5, arousal=0.4, **kw).key == "positive"
+    assert (
+        classify_atmosphere(energy=70, valence=0.5, arousal=0.4, dominant="happiness", **kw).key == "positive"
+    )
+    # nötr baskınken "pozitif" denmemeli (canlı testte görülen tutarsızlık)
+    assert (
+        classify_atmosphere(energy=70, valence=0.5, arousal=0.4, dominant="neutral", **kw).key != "positive"
+    )
     assert classify_atmosphere(energy=50, valence=0, arousal=0, **kw).key == "focused"
     assert classify_atmosphere(energy=50, valence=None, arousal=None, **kw).key == "focused"
 
@@ -97,3 +103,16 @@ def test_emotion_meta_reads_sidecar(tmp_path) -> None:  # type: ignore[no-untype
     )
     meta = EmotionMeta.for_model(model)
     assert (meta.name, meta.input_size, meta.source_size, meta.temperature) == ("x", 112, 48, 1.3)
+
+
+def test_energy_calibration_points() -> None:
+    """Hareketsiz-nötr-uyanık ≈ Orta; gülümseyen-hareketli = Yüksek; gözleri kapalı = Çok düşük."""
+    neutral, lively, sleepy = PersonState(1), PersonState(2), PersonState(3)
+    feed(neutral, 0, 50, blink=0.05, label="neutral")
+    feed(lively, 0, 50, blink=0.05, label="happiness")
+    feed(sleepy, 0, 50, blink=0.9, label="neutral")
+    lively.motion = 0.08
+    e = {n: p.energy(10, FERPLUS_LABELS) for n, p in (("n", neutral), ("l", lively), ("s", sleepy))}
+    assert 40 <= e["n"] <= 55
+    assert e["l"] >= 65
+    assert e["s"] < 15

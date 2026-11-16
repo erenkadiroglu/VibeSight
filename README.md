@@ -10,7 +10,7 @@ Kişileri sayar, yüz ifadelerini, enerji ve dikkat düzeyini oda bazında özet
 |---|---|
 | Kişi sayısı | YOLOX-S kişi tespiti + hafif takipçi, 2 sn medyan |
 | Gözlenen ifadeler | FER+ ile eğitilmiş 8 sınıflı ifade modeli, zamanla yumuşatılmış |
-| Enerji (0–100) | Uyarılmışlık + göz kapanma oranı (PERCLOS) + esneme + hareket |
+| Enerji (0–100) | (25 + 75 × canlılık) × uyanıklık; canlılık = ifadeden uyarılmışlık + hareket, uyanıklık = göz kapanma oranından (PERCLOS), esnemede ×0,8 |
 | Dikkat | Baş pozu öne dönük yüzlerin oranı |
 | Atmosfer | Yukarıdakilerden kural tabanlı oda özeti: Odaklı, Pozitif, Sakin, Yorgun, Gergin |
 
