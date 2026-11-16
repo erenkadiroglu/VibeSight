@@ -1,0 +1,37 @@
+# Gizli bilgiler
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Modeller, veriler, eğitim çıktıları (büyük dosyalar repoya girmez)
+backend/models/*
+!backend/models/.gitkeep
+backend/data/
+backend/camera_test.jpg
+training/artifacts/
+training/data/
+*.onnx
+*.pt
+*.task
+*.sqlite3*
+
+# Editör / işletim sistemi
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+

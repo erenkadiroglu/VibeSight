@@ -1,0 +1,133 @@
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/atkinson-hyperlegible-next';
+@import 'tailwindcss';
+
+/*
+ * VibeSight tasarım token'ları
+ * Koyu tema "kara tahta": yeşilimsi arduvaz zemin, tebeşir beyazı metin.
+ * Açık tema "kâğıt": hafif soğuk kâğıt beyazı, mürekkep metin.
+ * Grafik serileri (enerji = kehribar, dikkat = mavi) her tema için ayrı ayrı doğrulandı
+ * (OKLCH bant, kroma, renk körlüğü ΔE ≥ 21, yüzeye kontrast ≥ 3:1).
+ */
+:root,
+[data-theme='dark'] {
+  --board: #18211e;
+  --board-raised: #1f2a26;
+  --board-sunken: #121916;
+  --line: #2c3934;
+  --line-strong: #3b4a44;
+  --chalk: #e9ece4;
+  --chalk-2: #b9c2bc;
+  --chalk-3: #8d9993;
+  --highlight: #f2d16b;
+  --series-energy: #b88a18;
+  --series-attention: #4f9ad8;
+  --bar: #4f9ad8;
+  --bar-muted: #34514a;
+  --tone-positive: #6cc49a;
+  --tone-focused: #7ab3e6;
+  --tone-calm: #b6b0dd;
+  --tone-tired: #e3b25b;
+  --tone-tense: #ef8a7a;
+  --tone-unknown: #8d9993;
+  --overlay-ink: #0f1513;
+  --video-bg: #0e1412;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --board: #fbfbf8;
+  --board-raised: #ffffff;
+  --board-sunken: #f0f2ec;
+  --line: #e0e4dc;
+  --line-strong: #c9cfc6;
+  --chalk: #1c2421;
+  --chalk-2: #46524d;
+  --chalk-3: #6a7570;
+  --highlight: #8a6a00;
+  --series-energy: #b07c00;
+  --series-attention: #2f6fa8;
+  --bar: #2f6fa8;
+  --bar-muted: #c9d8e6;
+  --tone-positive: #1f7a4f;
+  --tone-focused: #2a64a0;
+  --tone-calm: #5d55a0;
+  --tone-tired: #93600a;
+  --tone-tense: #b23b2a;
+  --tone-unknown: #6a7570;
+  --overlay-ink: #0f1513;
+  --video-bg: #1a211e;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-board: var(--board);
+  --color-raised: var(--board-raised);
+  --color-sunken: var(--board-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-chalk: var(--chalk);
+  --color-chalk-2: var(--chalk-2);
+  --color-chalk-3: var(--chalk-3);
+  --color-highlight: var(--highlight);
+  --color-energy: var(--series-energy);
+  --color-attention: var(--series-attention);
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    background: var(--board);
+    color: var(--chalk);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--highlight);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--highlight) 35%, transparent);
+  }
+}
+
+@layer components {
+  .numeric {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  .display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes beat {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  12% { transform: scale(1.35); opacity: 0.85; }
+  24% { transform: scale(1); }
+}
+.beat {
+  animation: beat 1.6s ease-in-out infinite;
+  transform-origin: center;
+}
