@@ -11,7 +11,8 @@ Kişileri sayar, yüz ifadelerini, enerji ve dikkat düzeyini oda bazında özet
 | Kişi sayısı | YOLOX-S kişi tespiti + hafif takipçi, 2 sn medyan |
 | Gözlenen ifadeler | EmotiEffLib (AffectNet) 8 sınıflı ifade modeli + doğrudan valans/uyarılmışlık; alternatif olarak kendi FER+ modelimiz |
 | Enerji (0–100) | (25 + 75 × canlılık) × uyanıklık; canlılık = ifadeden uyarılmışlık + hareket, uyanıklık = göz kapanma oranından (PERCLOS), esnemede ×0,8 |
-| Dikkat | Baş pozu öne dönük yüzlerin oranı |
+| **Katılım** | **Öğrenilmiş model** (EmotiEffLib, EngageWild ile eğitilmiş dikkat ağı): kişinin son ~10 sn'lik yüz özniteliklerinden katılımcı/dalgın olasılığı |
+| Öne dönük yüzler | Baş açısı ±25° içindeki yüzlerin oranı (geometrik ölçüm) |
 | Atmosfer | Yukarıdakilerden kural tabanlı oda özeti: Odaklı, Pozitif, Sakin, Yorgun, Gergin |
 
 Görüntü kaydedilmez, kimse tanınmaz, hiçbir veri buluta gitmez. Ayrıntılar: [docs/ETHICS_KVKK.md](docs/ETHICS_KVKK.md).

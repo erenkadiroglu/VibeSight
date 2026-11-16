@@ -45,3 +45,40 @@ def test_mock_people_never_share_a_seat(tmp_path: Path) -> None:
         engine._step(1_000.0 + k / 6)
         slots = [a["slot"] for a in engine._agents]
         assert len(slots) == len(set(slots))
+
+
+def test_history_migrates_old_database(tmp_path: Path) -> None:
+    """Eski sürümle oluşturulmuş (katılım sütunu olmayan) veritabanı sorunsuz yükseltilir."""
+    import sqlite3
+
+    from vibesight.storage.history import History
+
+    db = tmp_path / "old.db"
+    con = sqlite3.connect(db)
+    con.execute(
+        "CREATE TABLE room_metrics (t REAL PRIMARY KEY, count INTEGER NOT NULL, faces INTEGER NOT NULL, "
+        "energy REAL, attention REAL, valence REAL, arousal REAL, perclos REAL, activity REAL, "
+        "atmosphere TEXT, emotions TEXT)"
+    )
+    con.execute("INSERT INTO room_metrics VALUES (1, 3, 2, 50, 0.5, 0, 0, 0.1, 10, 'calm', NULL)")
+    con.commit()
+    con.close()
+    h = History(db)
+    snap = {
+        "t": 2.0,
+        "count": 4,
+        "faces_analyzed": 4,
+        "energy": 60.0,
+        "attention": 0.7,
+        "valence": 0.1,
+        "arousal": 0.2,
+        "perclos": 0.05,
+        "activity": 20.0,
+        "atmosphere": {"key": "focused"},
+        "emotions": None,
+        "engagement": 0.8,
+    }
+    h.add(snap)
+    rows = h.since(10, now=5)
+    assert [r["count"] for r in rows] == [3, 4]
+    assert rows[0]["engagement"] is None and rows[1]["engagement"] == 0.8

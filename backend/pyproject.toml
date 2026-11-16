@@ -13,6 +13,8 @@ dependencies = [
   "opencv-python-headless>=4.10",
   "onnxruntime>=1.19",
   "mediapipe>=0.10.14",
+  "h5py>=3.16.0",
+  "onnx>=1.23.2",
 ]
 
 [dependency-groups]

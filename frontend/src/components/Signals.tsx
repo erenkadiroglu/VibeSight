@@ -1,4 +1,4 @@
-import { Activity, Eye, ScanFace, Wind } from 'lucide-react'
+import { Activity, Eye, Focus, ScanFace, Wind } from 'lucide-react'
 import { num } from '../lib/format'
 import type { Snapshot } from '../lib/types'
 
@@ -23,6 +23,14 @@ export function Signals({ snapshot }: { snapshot: Snapshot | null }) {
       warn: (snapshot?.yawns_recent ?? 0) >= 2,
     },
     {
+      icon: Focus,
+      label: 'Öne dönük yüzler',
+      hint: 'Baş açısı ±25° içinde olan yüzlerin oranı (geometrik ölçüm, katılım modelinden bağımsız).',
+      value: snapshot?.attention == null ? '—' : `%${num(snapshot.attention * 100)}`,
+      meter: snapshot?.attention ?? null,
+      warn: snapshot?.attention != null && snapshot.attention < 0.5,
+    },
+    {
       icon: Activity,
       label: 'Hareketlilik',
       hint: 'Kişi kutuları içindeki ortalama hareket miktarı.',
@@ -45,7 +53,7 @@ export function Signals({ snapshot }: { snapshot: Snapshot | null }) {
         <h2 id="signals-title" className="display text-xl font-semibold">
           Sinyaller
         </h2>
-        <p className="text-sm text-chalk-3">Enerji endeksinin bileşenleri</p>
+        <p className="text-sm text-chalk-3">Enerji ve katılımın dayandığı ölçümler</p>
       </div>
       <ul className="flex flex-col divide-y divide-line">
         {rows.map((r) => (

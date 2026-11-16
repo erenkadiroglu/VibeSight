@@ -11,6 +11,7 @@ function toPoint(s: {
   count: number
   energy: number | null
   attention: number | null
+  engagement?: number | null
   valence: number | null
   arousal: number | null
   atmosphere?: string | { key: string } | null
@@ -20,6 +21,7 @@ function toPoint(s: {
     count: s.count,
     energy: s.energy,
     attention: s.attention == null ? null : s.attention * 100,
+    engagement: s.engagement == null ? null : s.engagement * 100,
     valence: s.valence,
     arousal: s.arousal,
     atmosphere: typeof s.atmosphere === 'object' && s.atmosphere ? s.atmosphere.key : (s.atmosphere ?? null),

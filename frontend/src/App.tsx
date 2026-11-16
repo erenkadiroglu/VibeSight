@@ -1,12 +1,12 @@
 import clsx from 'clsx'
-import { Moon, ShieldCheck, Sun } from 'lucide-react'
+import { ChevronDown, Cpu, Moon, ShieldCheck, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AtmospherePanel } from './components/Atmosphere'
 import { AffectPlane, EmotionBars } from './components/Emotions'
 import { PulseChart } from './components/PulseChart'
 import { Signals } from './components/Signals'
 import { VideoStage } from './components/VideoStage'
-import { duration, num } from './lib/format'
+import { num } from './lib/format'
 import { useLive, useTheme, type Connection } from './lib/live'
 import type { EngineStatus, LabelMeta } from './lib/types'
 
@@ -194,8 +194,9 @@ function Performance({ status }: { status: EngineStatus }) {
   )
 }
 
+const MODEL_ORDER = ['detector', 'face', 'emotion', 'engagement'] as const
+
 function Footer({ status }: { status: EngineStatus | null }) {
-  const emotion = status?.models.emotion
   return (
     <footer className="flex flex-col gap-4 border-t border-line py-6 text-[13px] text-chalk-3 md:flex-row md:items-start md:justify-between">
       <p className="flex max-w-[70ch] gap-2">
@@ -206,14 +207,40 @@ function Footer({ status }: { status: EngineStatus | null }) {
         </span>
       </p>
       {status && (
-        <dl className="grid shrink-0 grid-cols-[auto_auto] gap-x-4 gap-y-0.5">
-          <dt>İfade modeli</dt>
-          <dd className={emotion?.loaded ? 'text-chalk-2' : 'text-[var(--tone-tired)]'}>
-            {emotion?.loaded ? emotion.name : 'yüklü değil'}
-          </dd>
-          <dt>Çalışma süresi</dt>
-          <dd className="text-chalk-2">{duration(status.uptime_s)}</dd>
-        </dl>
+        <details className="group shrink-0 md:max-w-xl">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-chalk-2 hover:text-chalk">
+            <Cpu className="size-4" aria-hidden />
+            {status.mode === 'mock'
+              ? 'Modeller (demo modunda çıktılar simüle edilir)'
+              : `Modeller: ${MODEL_ORDER.filter((k) => status.models[k]?.loaded).length} öğrenilmiş model çalışıyor`}
+            <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <ul className="mt-3 flex flex-col gap-3 rounded-xl bg-raised p-4 ring-1 ring-line">
+            {MODEL_ORDER.map((k) => {
+              const m = status.models[k]
+              if (!m) return null
+              return (
+                <li key={k} className="grid grid-cols-[1fr_auto] gap-x-4">
+                  <span className="font-semibold text-chalk">{m.task}</span>
+                  <span
+                    className={
+                      m.simulated ? 'text-chalk-3' : m.loaded ? 'text-[var(--tone-positive)]' : 'text-[var(--tone-tired)]'
+                    }
+                  >
+                    {m.simulated ? 'Demoda simüle' : m.loaded ? 'Çalışıyor' : 'Yüklü değil'}
+                  </span>
+                  <span className="col-span-2 text-chalk-2">
+                    {m.name}. {m.kind}, eğitim verisi: {m.data}.
+                  </span>
+                </li>
+              )
+            })}
+            <li className="border-t border-line pt-3 text-chalk-3">
+              Enerji ve atmosfer etiketi, bu modellerin çıktılarından açıkça tanımlı formüllerle birleştirilir; formüller
+              kişi ayrıntı kartında görünür.
+            </li>
+          </ul>
+        </details>
       )}
     </footer>
   )

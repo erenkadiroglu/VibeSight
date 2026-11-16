@@ -15,6 +15,9 @@ import numpy as np
 
 from vibesight.analytics.affect import LABELS_TR, valence_arousal
 
+ENGAGEMENT_WINDOW = 128  # EmotiEffLib'in eğitimdeki kayan pencere uzunluğu
+ENGAGEMENT_MIN_FRAMES = 32  # daha kısa dizide tahmin verilmez ("ısınıyor")
+ENGAGEMENT_EVERY_S = 1.0
 EMOTION_ALPHA = 0.5  # 6 Hz'de ~0.3 sn'lik yumuşatma: tek kare gürültüsünü bastırır, gecikme hissettirmez
 PERCLOS_WINDOW_S = 30.0
 EYES_CLOSED_THRESHOLD = 0.55
@@ -58,6 +61,15 @@ class PersonState:
     _jaw_open_since: float | None = None
     _last_yawn_t: float = -1e9
     yawns: int = 0
+    # Öğrenilmiş katılım modeli için son ~10 sn'nin yüz öznitelikleri ve son tahmin
+    features: deque[np.ndarray] = field(default_factory=lambda: deque(maxlen=ENGAGEMENT_WINDOW))
+    engagement: float | None = None
+    engagement_t: float = 0.0
+
+    @property
+    def engagement_progress(self) -> float:
+        """Katılım tahmini için gereken en az kare sayısına ne kadar yaklaşıldı (0–1)."""
+        return min(1.0, len(self.features) / ENGAGEMENT_MIN_FRAMES)
 
     def observe_motion(self, value: float) -> None:
         self.motion = ema(self.motion, value, 0.3)
@@ -163,6 +175,7 @@ def classify_atmosphere(
     attention: float | None,
     perclos: float | None,
     dominant: str | None = None,
+    engagement: float | None = None,
 ) -> Atmosphere:
     if faces == 0 or energy is None:
         return Atmosphere("unknown", "Veri bekleniyor", "unknown", "Analiz için yeterli yüz görünmüyor.")
@@ -178,7 +191,19 @@ def classify_atmosphere(
         return Atmosphere(
             "positive", "Pozitif & Enerjik", "positive", "Olumlu ifadeler ve yüksek enerji gözleniyor."
         )
-    if (attention or 0) >= 0.65 and energy >= 40:
+    if engagement is not None:  # öğrenilmiş katılım modeli varsa baş açısı kuralının yerine o kullanılır
+        if engagement < 0.35:
+            return Atmosphere(
+                "distracted",
+                "Dikkat dağınık",
+                "tired",
+                "Katılım modeli çoğunluğu dalgın olarak sınıflandırıyor.",
+            )
+        if engagement >= 0.6 and energy >= 40:
+            return Atmosphere(
+                "focused", "Odaklı", "focused", "Katılım modeli çoğunluğu derse katılımcı görüyor."
+            )
+    elif (attention or 0) >= 0.65 and energy >= 40:
         return Atmosphere("focused", "Odaklı", "focused", "Çoğunluk ön tarafa dönük ve uyanık görünüyor.")
     if energy < 40:
         return Atmosphere("calm", "Sakin / Düşük tempo", "calm", "Enerji ortalamanın altında, ortam durgun.")
@@ -232,6 +257,8 @@ class RoomAggregator:
         att_flags = [a for p in faced if (a := p.attentive) is not None]
         attention = (sum(att_flags) / len(att_flags)) if att_flags else None
         perclos = float(np.mean([p.perclos for p in faced])) if faced else None
+        engaged = [p.engagement for p in faced if p.engagement is not None]
+        engagement = float(np.mean(engaged)) if engaged else None
         motion = [p.motion for t in active_ids if (p := self.people.get(t)) and p.motion is not None]
         activity = clamp01(float(np.mean(motion)) / 0.12) * 100 if motion else None
 
@@ -244,6 +271,7 @@ class RoomAggregator:
             arousal=arousal,
             attention=attention,
             perclos=perclos,
+            engagement=engagement,
         )
 
         people_out = []
@@ -279,6 +307,8 @@ class RoomAggregator:
                 e = p.energy(now, self.labels)
                 item["energy"] = round(e, 1) if e is not None else None
                 item["attentive"] = p.attentive
+                item["engagement"] = round(p.engagement, 3) if p.engagement is not None else None
+                item["engagement_progress"] = round(p.engagement_progress, 2)
                 # Ayrıntı kartı için ham sinyaller: kullanıcı her sayının nereden geldiğini görebilsin
                 comps = p.energy_components(now, self.labels)
                 item["signals"] = {
@@ -304,6 +334,8 @@ class RoomAggregator:
             "arousal": arousal,
             "energy": energy,
             "attention": attention,
+            "engagement": engagement,
+            "engagement_people": len(engaged),
             "perclos": perclos,
             "activity": activity,
             "yawns_recent": sum(p.yawned_recently(now) for p in faced),

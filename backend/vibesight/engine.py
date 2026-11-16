@@ -22,13 +22,34 @@ from typing import Any
 import cv2
 import numpy as np
 
-from vibesight.analytics.state import RoomAggregator
+from vibesight.analytics.state import ENGAGEMENT_EVERY_S, ENGAGEMENT_MIN_FRAMES, RoomAggregator
 from vibesight.config import Settings
 from vibesight.sources.capture import FrameSource, SourceStatus
 from vibesight.storage.history import History
 from vibesight.vision.emotion import FERPLUS_LABELS, EmotionClassifier
+from vibesight.vision.engagement import EngagementModel
 
 log = logging.getLogger(__name__)
+
+# Arayüzdeki "Modeller" panelinde gösterilir: neyin öğrenilmiş, neyin kural olduğu açıkça görünsün.
+MODEL_INFO: dict[str, dict[str, str]] = {
+    "detector": {"task": "Kişi tespiti", "kind": "Derin öğrenme (CNN)", "data": "COCO, ~118 bin görüntü"},
+    "face": {
+        "task": "478 yüz noktası, göz/çene, baş açısı",
+        "kind": "Derin öğrenme",
+        "data": "Google yüz veri setleri",
+    },
+    "emotion": {
+        "task": "8 ifade + valans/uyarılmışlık",
+        "kind": "Derin öğrenme (EfficientNet-B0)",
+        "data": "AffectNet, ~290 bin yüz",
+    },
+    "engagement": {
+        "task": "Katılımcı / dalgın (son ~10 sn)",
+        "kind": "Derin öğrenme (dikkat ağı)",
+        "data": "EngageWild, çevrimiçi ders videoları",
+    },
+}
 
 
 @dataclass
@@ -211,12 +232,25 @@ class VisionEngine(BaseEngine):
         self._tracks: list[tuple[int, np.ndarray, np.ndarray, float]] = []
         self._motion: dict[int, float] = {}
         self.detect_rate = RateMeter()
+        self.engagement: EngagementModel | None = None
+        eng_path = settings.model_path(settings.engagement_model)
+        if eng_path.exists() and self.emotion is not None and self.emotion.has_embedding:
+            self.engagement = EngagementModel(eng_path)
+        else:
+            log.warning("Katılım modeli devre dışı (dosya yok ya da ifade modeli öznitelik vermiyor).")
+
         self.models = {
-            "detector": {"name": det_path.name, "loaded": True},
-            "face": {"name": face_path.name, "loaded": True},
+            "detector": {"name": "YOLOX-S", "loaded": True, **MODEL_INFO["detector"]},
+            "face": {"name": "MediaPipe Face Landmarker", "loaded": True, **MODEL_INFO["face"]},
             "emotion": {
                 "name": self.emotion.meta.name if self.emotion else emo_path.name,
                 "loaded": self.emotion is not None,
+                **MODEL_INFO["emotion"],
+            },
+            "engagement": {
+                "name": "EmotiEffLib engagement (dikkat ağı)",
+                "loaded": self.engagement is not None,
+                **MODEL_INFO["engagement"],
             },
         }
 
@@ -326,14 +360,17 @@ class VisionEngine(BaseEngine):
                 observations.append((tid, obs))
         t = self._tick("face", t)
 
-        probs = va = None
+        probs = va = emb = None
         if self.emotion and observations:
-            probs, va = self.emotion.predict(
+            probs, va, emb = self.emotion.predict_full(
                 [o.aligned_gray for _, o in observations], [o.face_rgb for _, o in observations]
             )
-            self._tick("emotion", t)
+            t = self._tick("emotion", t)
         for i, (tid, obs) in enumerate(observations):
-            self.aggregator.person(tid, now).observe_face(
+            person = self.aggregator.person(tid, now)
+            if emb is not None:
+                person.features.append(emb[i])
+            person.observe_face(
                 now,
                 blink=obs.eye_blink,
                 jaw_open=obs.jaw_open,
@@ -343,6 +380,18 @@ class VisionEngine(BaseEngine):
                 probs=probs[i] if probs is not None else None,
                 va=va[i] if va is not None else None,
             )
+
+        if self.engagement is not None:  # öğrenilmiş katılım: kişi başına saniyede bir
+            for tid in boxes:
+                state = self.aggregator.people.get(tid)
+                if (
+                    state is not None
+                    and len(state.features) >= ENGAGEMENT_MIN_FRAMES
+                    and now - state.engagement_t >= ENGAGEMENT_EVERY_S
+                ):
+                    state.engagement = self.engagement(np.stack(state.features))
+                    state.engagement_t = now
+            self._tick("engagement", t)
 
         h, w = img.shape[:2]
         self._publish(self.aggregator.snapshot(now, list(boxes), boxes, (w, h)))
@@ -368,7 +417,15 @@ class MockEngine(BaseEngine):
         self._background = self._make_background()
         self._agents = [self._new_agent(i) for i in range(14)]
         self._next_id = 100
-        self.models = {k: {"name": "simülasyon", "loaded": True} for k in ("detector", "face", "emotion")}
+        names = {
+            "detector": "YOLOX-S",
+            "face": "MediaPipe Face Landmarker",
+            "emotion": "EmotiEffLib enet_b0_8_va_mtl",
+            "engagement": "EmotiEffLib engagement",
+        }
+        self.models = {
+            k: {"name": names[k], "loaded": True, "simulated": True, **v} for k, v in MODEL_INFO.items()
+        }
 
     def status(self) -> dict[str, Any]:
         base = super().status()
@@ -477,6 +534,10 @@ class MockEngine(BaseEngine):
                 box=face,
                 probs=probs,
             )
+            # Simülasyon: uykulu evrede katılım düşer (gerçek modda bu değer öğrenilmiş modelden gelir)
+            target = 0.25 if sleepy else 0.8 - 0.15 * a["drowsy"]
+            prev = person.engagement if person.engagement is not None else target
+            person.engagement = min(1.0, max(0.0, 0.9 * prev + 0.1 * target + rng.uniform(-0.03, 0.03)))
 
         with self._img_lock:
             self._image = img

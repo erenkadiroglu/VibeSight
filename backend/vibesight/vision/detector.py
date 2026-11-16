@@ -18,7 +18,7 @@ class Detection:
     score: float
 
 
-def make_session(path: Path, threads: int = 0) -> ort.InferenceSession:
+def make_session(path: Path | bytes, threads: int = 0) -> ort.InferenceSession:
     opts = ort.SessionOptions()
     opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     if threads:
@@ -28,7 +28,9 @@ def make_session(path: Path, threads: int = 0) -> ort.InferenceSession:
         for p in ("CUDAExecutionProvider", "CoreMLExecutionProvider", "DmlExecutionProvider")
         if p in ort.get_available_providers()
     ] + ["CPUExecutionProvider"]
-    return ort.InferenceSession(str(path), sess_options=opts, providers=providers)
+    return ort.InferenceSession(
+        path if isinstance(path, bytes) else str(path), sess_options=opts, providers=providers
+    )
 
 
 class PersonDetector:

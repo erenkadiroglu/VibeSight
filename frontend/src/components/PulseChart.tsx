@@ -13,11 +13,11 @@ const RANGES = [
 
 const SERIES = [
   { key: 'energy', label: 'Enerji', color: 'var(--series-energy)' },
-  { key: 'attention', label: 'Dikkat', color: 'var(--series-attention)' },
+  { key: 'engagement', label: 'Katılım', color: 'var(--series-attention)' },
 ] as const
 
 const H = 220
-const M = { top: 12, right: 64, bottom: 26, left: 32 }
+const M = { top: 12, right: 92, bottom: 26, left: 32 }
 const GAP_S = 12 // bu süreden uzun boşlukta çizgi kesilir
 
 export function PulseChart({ series }: { series: Point[] }) {
@@ -89,7 +89,7 @@ export function PulseChart({ series }: { series: Point[] }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 id="pulse-title" className="display text-xl font-semibold">
-            Enerji ve dikkat
+            Enerji ve katılım
           </h2>
           <p className="text-sm text-chalk-3">0–100 ölçeğinde, saniyelik ortalama</p>
         </div>
@@ -144,9 +144,9 @@ export function PulseChart({ series }: { series: Point[] }) {
               width={width}
               height={H}
               role="img"
-              aria-label={`Son ${RANGES.find((r) => r.s === range)?.label} için enerji ve dikkat grafiği. Son değerler: enerji ${num(
+              aria-label={`Son ${RANGES.find((r) => r.s === range)?.label} için enerji ve katılım grafiği. Son değerler: enerji ${num(
                 last?.energy,
-              )}, dikkat ${num(last?.attention)}.`}
+              )}, katılım ${num(last?.engagement)}.`}
               onPointerMove={onMove}
               onPointerLeave={() => setHover(null)}
               className="block touch-none select-none"
@@ -263,23 +263,23 @@ function DataTable({ data }: { data: Point[] }) {
       const k = Math.floor(p.t / 60) * 60
       byMin.set(k, [...(byMin.get(k) ?? []), p])
     }
-    const avg = (ps: Point[], k: 'energy' | 'attention') => {
+    const avg = (ps: Point[], k: 'energy' | 'engagement') => {
       const v = ps.map((p) => p[k]).filter((x): x is number => x != null)
       return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null
     }
     return [...byMin.entries()]
-      .map(([t, ps]) => ({ t, energy: avg(ps, 'energy'), attention: avg(ps, 'attention'), count: Math.max(...ps.map((p) => p.count)) }))
+      .map(([t, ps]) => ({ t, energy: avg(ps, 'energy'), engagement: avg(ps, 'engagement'), count: Math.max(...ps.map((p) => p.count)) }))
       .reverse()
   }, [data])
   return (
     <div className="max-h-[220px] overflow-auto rounded-lg ring-1 ring-line">
       <table className="w-full text-sm">
-        <caption className="sr-only">Dakikalık ortalama enerji, dikkat ve kişi sayısı</caption>
+        <caption className="sr-only">Dakikalık ortalama enerji, katılım ve kişi sayısı</caption>
         <thead className="sticky top-0 bg-sunken text-left text-chalk-3">
           <tr>
             <th className="px-3 py-2 font-normal">Dakika</th>
             <th className="px-3 py-2 text-right font-normal">Enerji</th>
-            <th className="px-3 py-2 text-right font-normal">Dikkat</th>
+            <th className="px-3 py-2 text-right font-normal">Katılım</th>
             <th className="px-3 py-2 text-right font-normal">Kişi</th>
           </tr>
         </thead>
@@ -288,7 +288,7 @@ function DataTable({ data }: { data: Point[] }) {
             <tr key={r.t} className="border-t border-line">
               <td className="px-3 py-1.5 text-chalk-2">{shortClock(r.t)}</td>
               <td className="px-3 py-1.5 text-right">{num(r.energy)}</td>
-              <td className="px-3 py-1.5 text-right">{num(r.attention)}</td>
+              <td className="px-3 py-1.5 text-right">{num(r.engagement)}</td>
               <td className="px-3 py-1.5 text-right">{r.count}</td>
             </tr>
           ))}

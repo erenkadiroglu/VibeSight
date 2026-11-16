@@ -17,6 +17,8 @@ export interface Person {
   energy?: number | null
   attentive?: boolean | null
   probs?: Record<string, number>
+  engagement?: number | null
+  engagement_progress?: number
   signals?: {
     perclos: number
     yaw: number | null
@@ -42,6 +44,8 @@ export interface Snapshot {
   arousal: number | null
   energy: number | null
   attention: number | null
+  engagement: number | null
+  engagement_people: number
   perclos: number | null
   activity: number | null
   yawns_recent: number
@@ -67,7 +71,7 @@ export interface EngineStatus {
   timings_ms?: Record<string, number>
   privacy_blur: boolean
   uptime_s: number
-  models: Record<string, { name: string; loaded: boolean }>
+  models: Record<string, ModelInfo>
 }
 
 export interface LabelMeta {
@@ -90,7 +94,17 @@ export interface Point {
   count: number
   energy: number | null
   attention: number | null
+  engagement: number | null
   valence: number | null
   arousal: number | null
   atmosphere: string | null
+}
+
+export interface ModelInfo {
+  name: string
+  loaded: boolean
+  simulated?: boolean
+  task?: string
+  kind?: string
+  data?: string
 }

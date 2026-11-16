@@ -27,6 +27,7 @@ hem doğruluğu hem de olasılıkların güvenilirliğini artırır.
 | YOLOX-S (Megvii) | Apache-2.0 | Kişi tespiti, COCO mAP 40.5 |
 | MediaPipe Face Landmarker (Google) | Apache-2.0 | 478 yüz noktası, göz/çene blendshape'leri, baş pozu |
 | **EmotiEffLib `enet_b0_8_va_mtl`** (Savchenko, Sber AI Lab / HSE) | Apache-2.0 (kod ve ağırlık deposu) | **Varsayılan ifade modeli**: 8 ifade + doğrudan valans/uyarılmışlık |
+| **EmotiEffLib katılım modeli** (`engagement_single_attention.h5`) | Apache-2.0 | **Öğrenilmiş katılım**: ifade ağının 1280 boyutlu yüz özniteliklerinden oluşan diziden katılımcı/dalgın olasılığı (EngageWild) |
 
 ### Neden varsayılan ifade modeli EmotiEffLib?
 Kendi FER+ modelimiz FER+ testinde %83.4 doğruluk verdi, ama canlı webcam testinde ifadeleri zayıf yakaladı.
@@ -45,6 +46,15 @@ Not: Model ağırlıkları AffectNet ile eğitildi; AffectNet'in kullanım koşu
 demo konumlandırması (bkz. `ETHICS_KVKK.md`) bununla uyumludur; ticari kullanım öncesi ayrıca değerlendirilmelidir.
 
 Kendi modelimize geçmek için: `backend\.env` içine `VIBESIGHT_EMOTION_MODEL=emotion.onnx`.
+
+### Doğrulama
+- **İfade hattı:** EmotiEffLib'in kendi test fotoğrafında resmî beklenti `[Mutlu, Kızgın, Mutlu]`. Hattımız
+  (YOLOX + MediaPipe + MTCNN eşdeğeri kırpma) aynı sonucu verir; `backend/tests/test_models.py` bunu her
+  çalıştırmada denetler. Kırpma çerçevesi MTCNN kutusuna göre ölçülerek ayarlandı (yüz yüksekliğinin %11'i yukarı).
+- **Katılım modeli:** Orijinal Keras modeli TensorFlow ile çalıştırılıp bizim NumPy uyarlamamızla karşılaştırıldı;
+  gerçek yüz özniteliklerinde en büyük fark 8.6×10⁻⁸ (birebir aynı model).
+- **Bilinen sınır:** Katılım modeli çevrimiçi derste dizüstü kamerasına bakan öğrencilerle eğitildi; sınıfın
+  uzağından çeken bir kamerada başarımı ayrıca doğrulanmalıdır. Hareketsiz görüntüde (fotoğraf) "dalgın" der.
 
 Tüm indirmeler `scripts/download_models.py` ile yapılır ve SHA-256 ile doğrulanır.
 

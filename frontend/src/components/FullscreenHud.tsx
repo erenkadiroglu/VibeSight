@@ -66,9 +66,9 @@ export function FullscreenHud({
           color="var(--series-energy)"
         />
         <Big
-          label="Dikkat"
-          value={snapshot?.attention == null ? '—' : `%${num(snapshot.attention * 100)}`}
-          meter={snapshot?.attention == null ? null : snapshot.attention * 100}
+          label="Katılım"
+          value={snapshot?.engagement == null ? '—' : `%${num(snapshot.engagement * 100)}`}
+          meter={snapshot?.engagement == null ? null : snapshot.engagement * 100}
           color="var(--series-attention)"
         />
       </dl>
@@ -152,7 +152,7 @@ function Spark({ series }: { series: Point[] }) {
   const pts = series.filter((p) => p.t >= t0)
   const x = (t: number) => ((t - t0) / SPARK_S) * SPARK_W
   const y = (v: number) => 4 + (1 - v / 100) * (SPARK_H - 8)
-  const path = (key: 'energy' | 'attention') => {
+  const path = (key: 'energy' | 'engagement') => {
     let d = ''
     let prev: Point | null = null
     for (const p of pts) {
@@ -177,7 +177,7 @@ function Spark({ series }: { series: Point[] }) {
           </li>
           <li className="flex items-center gap-1.5">
             <span className="h-0.5 w-3.5 rounded-full bg-[var(--series-attention)]" aria-hidden />
-            Dikkat
+            Katılım
           </li>
         </ul>
       </div>
@@ -185,12 +185,12 @@ function Spark({ series }: { series: Point[] }) {
         viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
         className="block w-full"
         role="img"
-        aria-label="Son 5 dakikada enerji ve dikkat"
+        aria-label="Son 5 dakikada enerji ve katılım"
       >
         {[0, 50, 100].map((v) => (
           <line key={v} x1={0} x2={SPARK_W} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeWidth={1} />
         ))}
-        <path d={path('attention')} fill="none" stroke="var(--series-attention)" strokeWidth={2} strokeLinejoin="round" />
+        <path d={path('engagement')} fill="none" stroke="var(--series-attention)" strokeWidth={2} strokeLinejoin="round" />
         <path d={path('energy')} fill="none" stroke="var(--series-energy)" strokeWidth={2} strokeLinejoin="round" />
       </svg>
     </section>

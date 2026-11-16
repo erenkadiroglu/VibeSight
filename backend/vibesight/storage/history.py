@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS room_metrics (
     perclos     REAL,
     activity    REAL,
     atmosphere  TEXT,
-    emotions    TEXT
+    emotions    TEXT,
+    engagement  REAL
 );
 """
 
@@ -37,6 +38,7 @@ FIELDS = (
     "activity",
     "atmosphere",
     "emotions",
+    "engagement",
 )
 
 
@@ -46,6 +48,11 @@ class History:
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(SCHEMA)
+        # Eski sürümle oluşturulmuş veritabanlarına yeni sütunları ekle (veri kaybı olmadan)
+        existing = {row[1] for row in self._db.execute("PRAGMA table_info(room_metrics)")}
+        for col in ("engagement",):
+            if col not in existing:
+                self._db.execute(f"ALTER TABLE room_metrics ADD COLUMN {col} REAL")
         self._lock = threading.Lock()
         self.retention_s = retention_days * 86400
         self._last_prune = 0.0
@@ -63,10 +70,12 @@ class History:
             snap["activity"],
             snap["atmosphere"]["key"],
             json.dumps(snap["emotions"]) if snap["emotions"] else None,
+            snap.get("engagement"),
         )
+        cols = ",".join(FIELDS)
         with self._lock:
             self._db.execute(
-                f"INSERT OR REPLACE INTO room_metrics VALUES ({','.join('?' * len(FIELDS))})", row
+                f"INSERT OR REPLACE INTO room_metrics ({cols}) VALUES ({','.join('?' * len(FIELDS))})", row
             )
             if snap["t"] - self._last_prune > 3600:
                 self._db.execute("DELETE FROM room_metrics WHERE t < ?", (snap["t"] - self.retention_s,))
@@ -76,7 +85,9 @@ class History:
     def since(self, seconds: float, now: float | None = None) -> list[dict[str, Any]]:
         start = (now or time.time()) - seconds
         with self._lock:
-            rows = self._db.execute("SELECT * FROM room_metrics WHERE t >= ? ORDER BY t", (start,)).fetchall()
+            rows = self._db.execute(
+                f"SELECT {','.join(FIELDS)} FROM room_metrics WHERE t >= ? ORDER BY t", (start,)
+            ).fetchall()
         out = []
         for r in rows:
             item = dict(zip(FIELDS, r, strict=True))

@@ -17,6 +17,7 @@ from mediapipe.tasks.python import BaseOptions, vision
 
 LEFT_EYE_OUTER, RIGHT_EYE_OUTER = 33, 263
 CROP_TARGET = 288
+MTCNN_TOP_EXTEND = 0.11  # bkz. FaceAnalyzer._box_crop
 
 
 @dataclass(slots=True)
@@ -122,11 +123,18 @@ class FaceAnalyzer:
 
     @staticmethod
     def _box_crop(crop: np.ndarray, pts: np.ndarray) -> np.ndarray:
-        """Yüz noktalarının kapsadığı kutu, RGB (EmotiEffLib modelleri hizalamasız yüz kutusuyla eğitildi)."""
+        """EmotiEffLib modellerinin eğitildiği MTCNN yüz kutusuna eşdeğer renkli (RGB) kırpıntı.
+
+        MTCNN kutusu, MediaPipe noktalarının kapsadığı alanla yanlarda ve altta örtüşür, ama yüz
+        yüksekliğinin ~%11'i kadar daha yukarıdan başlar (resmî test fotoğrafındaki 3 yüzde ölçüldü:
+        %9–14). Bu kaydırmayla sınıflandırıcı, resmî kütüphanenin test beklentisini birebir üretir.
+        """
         h, w = crop.shape[:2]
-        x1, y1 = np.floor(pts.min(axis=0)).astype(int)
-        x2, y2 = np.ceil(pts.max(axis=0)).astype(int)
-        x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
+        x1, y1 = pts.min(axis=0)
+        x2, y2 = pts.max(axis=0)
+        y1 -= MTCNN_TOP_EXTEND * (y2 - y1)
+        x1, y1 = max(0, int(x1)), max(0, int(y1))
+        x2, y2 = min(w, int(np.ceil(x2))), min(h, int(np.ceil(y2)))
         return cv2.cvtColor(crop[y1:y2, x1:x2], cv2.COLOR_BGR2RGB)
 
     @staticmethod

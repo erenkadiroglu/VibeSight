@@ -48,6 +48,7 @@ class EmotionMeta:
     source_size: int | None = None  # eğitim verisinin çözünürlüğü (FER2013: 48) — aynı bulanıklığı üretir
     color: bool = False  # True: renkli yüz kutusu (RGB); False: hizalanmış gri yüz
     va_outputs: bool = False  # True: son iki çıktı valans ve uyarılmışlık ([-1, 1])
+    embedding: bool = False  # True: son katmandan önceki öznitelik vektörü de alınır (katılım modeli için)
     name: str = "emotion"
 
     @classmethod
@@ -69,8 +70,23 @@ def softmax(x: np.ndarray, temperature: float = 1.0) -> np.ndarray:
 class EmotionClassifier:
     def __init__(self, model_path: Path, threads: int = 0) -> None:
         self.meta = EmotionMeta.for_model(model_path)
-        self.session = make_session(model_path, threads)
+        source = self._with_embedding(model_path) if self.meta.embedding else model_path
+        self.session = make_session(source, threads)
         self.input_name = self.session.get_inputs()[0].name
+        self.has_embedding = len(self.session.get_outputs()) > 1
+
+    @staticmethod
+    def _with_embedding(model_path: Path) -> bytes:
+        """Son Gemm katmanının girdisini (öznitelik vektörü) ek çıktı olarak açar; dosyaya dokunmaz."""
+        import onnx
+
+        model = onnx.load(str(model_path))
+        gemm = model.graph.node[-1]
+        if gemm.op_type != "Gemm":
+            raise ValueError("Öznitelik çıkışı için son katman Gemm olmalı")
+        out = onnx.helper.make_tensor_value_info(gemm.input[0], onnx.TensorProto.FLOAT, None)
+        model.graph.output.append(out)
+        return model.SerializeToString()
 
     @property
     def labels(self) -> list[str]:
@@ -97,22 +113,28 @@ class EmotionClassifier:
 
     def predict(self, gray: list[np.ndarray], rgb: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray | None]:
         """Yüz kırpıntıları → (olasılıklar (N, C), valans-uyarılmışlık (N, 2) veya None)."""
+        probs, va, _ = self.predict_full(gray, rgb)
+        return probs, va
+
+    def predict_full(
+        self, gray: list[np.ndarray], rgb: list[np.ndarray]
+    ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
+        """predict + (varsa) öznitelik vektörleri (N, 1280)."""
         n_cls = len(self.labels)
         if not gray:
-            return np.zeros((0, n_cls), np.float32), None
+            return np.zeros((0, n_cls), np.float32), None, None
         x = self.preprocess(rgb if self.meta.color else gray)
         # Bazı modeller sabit batch=1 ister; güvenli olmak için tek tek çalıştır.
-        fixed_batch = self.session.get_inputs()[0].shape[0] == 1
-        out = (
-            np.concatenate(
-                [self.session.run(None, {self.input_name: x[i : i + 1]})[0] for i in range(len(x))]
-            )
-            if fixed_batch
-            else self.session.run(None, {self.input_name: x})[0]
-        ).reshape(len(x), -1)
+        if self.session.get_inputs()[0].shape[0] == 1:
+            runs = [self.session.run(None, {self.input_name: x[i : i + 1]}) for i in range(len(x))]
+            outs = [np.concatenate([r[k] for r in runs]) for k in range(len(runs[0]))]
+        else:
+            outs = self.session.run(None, {self.input_name: x})
+        out = outs[0].reshape(len(x), -1)
         probs = softmax(out[:, :n_cls], self.meta.temperature)
         va = np.clip(out[:, n_cls : n_cls + 2], -1, 1) if self.meta.va_outputs else None
-        return probs, va
+        emb = outs[1].reshape(len(x), -1) if self.has_embedding else None
+        return probs, va, emb
 
     def __call__(self, faces: list[np.ndarray]) -> np.ndarray:
         """Geriye uyumluluk: yalnızca olasılıklar."""

@@ -56,10 +56,10 @@ export function AtmospherePanel({ snapshot, series }: { snapshot: Snapshot | nul
         />
         <Reading
           icon={<Focus className="size-4" aria-hidden />}
-          label="Dikkat"
-          value={snapshot?.attention == null ? '—' : `%${num(snapshot.attention * 100)}`}
-          note="öne dönük yüzler"
-          meter={snapshot?.attention == null ? null : snapshot.attention * 100}
+          label="Katılım"
+          value={snapshot?.engagement == null ? '—' : `%${num(snapshot.engagement * 100)}`}
+          note={snapshot?.engagement == null ? 'model ısınıyor' : 'öğrenilmiş model'}
+          meter={snapshot?.engagement == null ? null : snapshot.engagement * 100}
           meterColor="var(--series-attention)"
         />
       </dl>

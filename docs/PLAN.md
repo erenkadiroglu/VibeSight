@@ -132,7 +132,7 @@ Varsayılan yol yalnızca **FER2013 + FER+** ile başvuru beklemeden tamamlanır
 - canlılık = 0.6 · uyarılmışlık' + 0.4 · hareket' · uyanıklık = 1 − min(PERCLOS / 0.4, 1)
 - Ayar noktaları: hareketsiz-nötr-uyanık ≈ 47 (Orta), gülümseyen-hareketli ≥ 65 (Yüksek), gözleri sık kapanan < 15.
 - (İlk sürümdeki toplamsal formül, uyanık oturan herkese 65+ veriyordu; canlı testte düzeltildi.)
-**Dikkat** = kameraya/tahtaya dönük (|yaw| < 25°, pitch > −20°) yüzlerin oranı.
+**Katılım** = öğrenilmiş model (EmotiEffLib, EngageWild): kişi başına son 128 karenin yüz öznitelikleri → dikkat ağı → katılımcı olasılığı. Baş açısından gelen "öne dönük" oranı ayrı bir sinyal olarak kalır.
 **Atmosfer** = kural tabanlı birleşim (ör. yüksek enerji + pozitif valans → "Pozitif & Enerjik"; düşük enerji + yüksek PERCLOS → "Yorgun").
 Ağırlıklar `config` dosyasında; Faz 2'de DAiSEE (ücretsiz, akademik talep) ile öğrenilmiş bir "katılım" modeline geçilebilir.
 

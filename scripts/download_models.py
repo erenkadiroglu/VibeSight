@@ -37,11 +37,18 @@ MODELS = [
             "channels": 3,
             "color": True,
             "va_outputs": True,
+            "embedding": True,
             "mean": [0.485, 0.456, 0.406],
             "std": [0.229, 0.224, 0.225],
             "scale": 255.0,
             "temperature": 1.0,
         },
+    },
+    # Öğrenilmiş katılım modeli — Apache-2.0 — github.com/sb-ai-lab/EmotiEffLib (EngageWild ile eğitildi)
+    {
+        "file": "engagement_single_attention.h5",
+        "url": "https://raw.githubusercontent.com/sb-ai-lab/EmotiEffLib/main/models/engagement_classification/engagement_single_attention.h5",
+        "sha256": "243b4699eec398a335d32774849f65b2f0e2d63e358df479c5ee95a002cac30d",
     },
 ]
 
@@ -55,9 +62,9 @@ def sha256(path: Path) -> str:
 
 
 def write_meta(m: dict, dest: Path) -> None:
-    """Modelin tanım dosyasını (ön işleme, etiketler) yazar; var olan tanıma dokunmaz."""
+    """Modelin tanım dosyasını (ön işleme, etiketler) yazar; güncel tanımla her seferinde yenilenir."""
     meta_path = dest.with_suffix(".json")
-    if "meta" in m and not meta_path.exists():
+    if "meta" in m:
         meta_path.write_text(json.dumps(m["meta"], ensure_ascii=False, indent=2), "utf-8")
 
 

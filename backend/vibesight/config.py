@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     face_model: str = "face_landmarker.task"
     # Varsayılan: EmotiEffLib enet_b0_8_va_mtl (AffectNet). Kendi FER+ modelimiz için: emotion.onnx
     emotion_model: str = "enet_b0_8_va_mtl.onnx"
+    engagement_model: str = "engagement_single_attention.h5"  # EmotiEffLib, EngageWild
     person_conf: float = 0.45
     min_face_px: int = 40
     max_faces_per_cycle: int = 12

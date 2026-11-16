@@ -72,6 +72,32 @@ export function PersonDetail({
             )}
           </Section>
 
+          <Section title="Katılım (öğrenilmiş model)">
+            {person.engagement != null ? (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="display text-2xl font-semibold">%{num(person.engagement * 100)}</span>
+                  <span className={person.engagement >= 0.5 ? 'text-[var(--tone-positive)]' : 'text-[var(--tone-tired)]'}>
+                    {person.engagement >= 0.5 ? 'Katılımcı' : 'Dalgın'}
+                  </span>
+                </div>
+                <div className="mt-2 h-1.5 rounded-full bg-sunken" aria-hidden>
+                  <div
+                    className="h-full rounded-full bg-[var(--series-attention)] transition-[width] duration-500"
+                    style={{ width: `${person.engagement * 100}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-chalk-3">
+                Model ısınıyor: son birkaç saniyelik yüz verisi toplanıyor (%{num((person.engagement_progress ?? 0) * 100)}).
+              </p>
+            )}
+            <p className="mt-2 text-[12px] leading-snug text-chalk-3">
+              Çevrimiçi ders videolarıyla (EngageWild) eğitilmiş dikkat ağı; son ~10 saniyedeki yüz ifadesi değişimlerine bakar.
+            </p>
+          </Section>
+
           <Section title={`Enerji ${num(person.energy)}`}>
             <Row label="İfadeden uyarılmışlık" value={pct01(s.arousal)} />
             <Row label="Hareket" value={pct01(s.motion)} />
