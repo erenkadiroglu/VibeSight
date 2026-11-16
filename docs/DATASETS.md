@@ -26,11 +26,31 @@ hem doğruluğu hem de olasılıkların güvenilirliğini artırır.
 |---|---|---|
 | YOLOX-S (Megvii) | Apache-2.0 | Kişi tespiti, COCO mAP 40.5 |
 | MediaPipe Face Landmarker (Google) | Apache-2.0 | 478 yüz noktası, göz/çene blendshape'leri, baş pozu |
-| emotion-ferplus-8 (ONNX Model Zoo) | MIT | Kendi modelimiz eğitilene kadar taban ifade modeli |
+| **EmotiEffLib `enet_b0_8_va_mtl`** (Savchenko, Sber AI Lab / HSE) | Apache-2.0 (kod ve ağırlık deposu) | **Varsayılan ifade modeli**: 8 ifade + doğrudan valans/uyarılmışlık |
+
+### Neden varsayılan ifade modeli EmotiEffLib?
+Kendi FER+ modelimiz FER+ testinde %83.4 doğruluk verdi, ama canlı webcam testinde ifadeleri zayıf yakaladı.
+Nedeni veri: FER2013, 48×48 piksellik **gri** ve çoğunlukla **poz verilmiş** web fotoğraflarıdır. Webcam yüzünü
+48 piksele indirmek renk ve ince ayrıntıyı (göz kırışığı, dudak köşesi) siler.
+
+EmotiEffLib modelleri **AffectNet** (~290 bin gerçek dünya fotoğrafı) ile **224×224 renkli** girdide eğitilmiştir:
+- AffectNet 8 sınıf doğruluğu: **%61.9** (AffectNet'te insanlar arası uyum da ~%60 civarıdır; bu veri setinde en iyi
+  tek modeller %62–65 aralığındadır, yani bu sayı FER+'daki %83 ile doğrudan kıyaslanamaz).
+- Aynı ağ hem ifadeyi hem de **valans ve uyarılmışlığı** doğrudan tahmin eder; çember eşlemesine gerek kalmaz.
+- EmotiW / ABAW yarışmalarında üst sıralar; çevrimiçi derslerde **katılım tespiti** için yayımlanmıştır
+  (Savchenko ve ark., *IEEE Transactions on Affective Computing*, 2022).
+- CPU'da yüz başına ~15 ms, 16 MB.
+
+Not: Model ağırlıkları AffectNet ile eğitildi; AffectNet'in kullanım koşulları araştırma amaçlıdır. Projenin akademik
+demo konumlandırması (bkz. `ETHICS_KVKK.md`) bununla uyumludur; ticari kullanım öncesi ayrıca değerlendirilmelidir.
+
+Kendi modelimize geçmek için: `backend\.env` içine `VIBESIGHT_EMOTION_MODEL=emotion.onnx`.
 
 Tüm indirmeler `scripts/download_models.py` ile yapılır ve SHA-256 ile doğrulanır.
 
 ## Bilinçli olarak kullanılmayanlar
 - **Ultralytics YOLOv8/11:** AGPL-3.0 lisansı tüm projeyi AGPL'ye zorlar.
 - **InsightFace / SCRFD hazır ağırlıkları:** ticari olmayan kullanım koşulu.
+- **LibreFace (USC):** güçlü, ama "USC Research License" ile kısıtlı lisanslı.
+- **OpenFace 2.0:** akademik, ticari olmayan lisans; ayrıca ağır C++ bağımlılıkları.
 - **Web'den toplanmış, kaynağı belirsiz "emotion dataset" kopyaları:** lisans ve etiket kalitesi doğrulanamıyor.

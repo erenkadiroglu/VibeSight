@@ -1,7 +1,9 @@
 """Yüz ifadesi sınıflandırıcısı (ONNX).
 
-Model, yanındaki `<model>.json` dosyasıyla tanımlanır; böylece hem ONNX Model Zoo'daki
-`emotion-ferplus-8` taban modeli hem de `training/` altında eğittiğimiz model aynı sınıfla çalışır.
+Model, yanındaki `<model>.json` dosyasıyla tanımlanır; böylece farklı modeller aynı sınıfla çalışır:
+  * EmotiEffLib `enet_b0_8_va_mtl` (varsayılan; AffectNet, renkli 224×224, valans/uyarılmışlık çıktılı)
+  * `training/` altında FER+ ile eğittiğimiz model (gri, 48→112)
+  * ONNX Model Zoo `emotion-ferplus-8` (gri, 64×64)
 
 Örnek `emotion.json`:
     {"labels": ["neutral", ...], "input_size": 112, "channels": 3,
@@ -44,6 +46,8 @@ class EmotionMeta:
     scale: float = 255.0
     temperature: float = 1.0
     source_size: int | None = None  # eğitim verisinin çözünürlüğü (FER2013: 48) — aynı bulanıklığı üretir
+    color: bool = False  # True: renkli yüz kutusu (RGB); False: hizalanmış gri yüz
+    va_outputs: bool = False  # True: son iki çıktı valans ve uyarılmışlık ([-1, 1])
     name: str = "emotion"
 
     @classmethod
@@ -74,31 +78,42 @@ class EmotionClassifier:
 
     def preprocess(self, faces: list[np.ndarray]) -> np.ndarray:
         m = self.meta
+        mean = np.array(m.mean, np.float32).reshape(-1, 1, 1)
+        std = np.array(m.std, np.float32).reshape(-1, 1, 1)
         batch = []
-        for gray in faces:
-            if m.source_size:
-                gray = cv2.resize(gray, (m.source_size, m.source_size), interpolation=cv2.INTER_AREA)
-            interp = cv2.INTER_LINEAR if gray.shape[0] < m.input_size else cv2.INTER_AREA
-            img = cv2.resize(gray, (m.input_size, m.input_size), interpolation=interp).astype(np.float32)
-            img = img / m.scale
-            chw = np.repeat(img[None], m.channels, axis=0)
-            mean = np.array(m.mean, np.float32).reshape(-1, 1, 1)
-            std = np.array(m.std, np.float32).reshape(-1, 1, 1)
+        for face in faces:
+            if m.color:
+                img = cv2.resize(face, (m.input_size, m.input_size)).astype(np.float32) / m.scale
+                chw = img.transpose(2, 0, 1)
+            else:
+                gray = face
+                if m.source_size:
+                    gray = cv2.resize(gray, (m.source_size, m.source_size), interpolation=cv2.INTER_AREA)
+                interp = cv2.INTER_LINEAR if gray.shape[0] < m.input_size else cv2.INTER_AREA
+                img = cv2.resize(gray, (m.input_size, m.input_size), interpolation=interp).astype(np.float32)
+                chw = np.repeat((img / m.scale)[None], m.channels, axis=0)
             batch.append((chw - mean) / std)
         return np.stack(batch).astype(np.float32)
 
-    def __call__(self, faces: list[np.ndarray]) -> np.ndarray:
-        """Gri yüz kırpıntıları → (N, C) olasılık matrisi."""
-        if not faces:
-            return np.zeros((0, len(self.labels)), np.float32)
-        x = self.preprocess(faces)
+    def predict(self, gray: list[np.ndarray], rgb: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray | None]:
+        """Yüz kırpıntıları → (olasılıklar (N, C), valans-uyarılmışlık (N, 2) veya None)."""
+        n_cls = len(self.labels)
+        if not gray:
+            return np.zeros((0, n_cls), np.float32), None
+        x = self.preprocess(rgb if self.meta.color else gray)
         # Bazı modeller sabit batch=1 ister; güvenli olmak için tek tek çalıştır.
         fixed_batch = self.session.get_inputs()[0].shape[0] == 1
-        logits = (
+        out = (
             np.concatenate(
                 [self.session.run(None, {self.input_name: x[i : i + 1]})[0] for i in range(len(x))]
             )
             if fixed_batch
             else self.session.run(None, {self.input_name: x})[0]
-        )
-        return softmax(logits.reshape(len(faces), -1), self.meta.temperature)
+        ).reshape(len(x), -1)
+        probs = softmax(out[:, :n_cls], self.meta.temperature)
+        va = np.clip(out[:, n_cls : n_cls + 2], -1, 1) if self.meta.va_outputs else None
+        return probs, va
+
+    def __call__(self, faces: list[np.ndarray]) -> np.ndarray:
+        """Geriye uyumluluk: yalnızca olasılıklar."""
+        return self.predict(faces, faces)[0]

@@ -116,3 +116,46 @@ def test_energy_calibration_points() -> None:
     assert 40 <= e["n"] <= 55
     assert e["l"] >= 65
     assert e["s"] < 15
+
+
+def test_model_valence_arousal_overrides_circumplex() -> None:
+    """Model valans/uyarılmışlık veriyorsa (EmotiEffLib) çember eşlemesi yerine o kullanılır."""
+    p = PersonState(1)
+    p.observe_face(
+        0,
+        blink=0,
+        jaw_open=0,
+        yaw=0,
+        pitch=0,
+        box=np.zeros(4, np.float32),
+        probs=onehot("neutral"),
+        va=np.array([0.7, -0.2], np.float32),
+    )
+    assert p.valence_arousal(FERPLUS_LABELS) == pytest.approx((0.7, -0.2))
+
+
+def test_color_model_preprocessing(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Renkli (ImageNet normalizasyonlu) model girdisi doğru şekil ve ölçekte hazırlanır."""
+    import json
+
+    from vibesight.vision.emotion import EmotionClassifier, EmotionMeta
+
+    model = tmp_path / "m.onnx"
+    model.write_bytes(b"")
+    model.with_suffix(".json").write_text(
+        json.dumps(
+            {
+                "input_size": 224,
+                "color": True,
+                "va_outputs": True,
+                "mean": [0.485, 0.456, 0.406],
+                "std": [0.229, 0.224, 0.225],
+                "scale": 255.0,
+            }
+        )
+    )
+    clf = EmotionClassifier.__new__(EmotionClassifier)
+    clf.meta = EmotionMeta.for_model(model)
+    x = clf.preprocess([np.full((60, 50, 3), 255, np.uint8)])
+    assert x.shape == (1, 3, 224, 224)
+    assert x[0, 0, 0, 0] == pytest.approx((1 - 0.485) / 0.229, rel=1e-4)

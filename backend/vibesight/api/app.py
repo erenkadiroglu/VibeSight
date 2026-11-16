@@ -26,8 +26,15 @@ from vibesight.analytics.affect import CIRCUMPLEX, LABELS_TR
 from vibesight.config import Settings, get_settings
 from vibesight.engine import BaseEngine, create_engine
 from vibesight.storage.history import History
+from vibesight.vision.emotion import FERPLUS_LABELS
 
 log = logging.getLogger(__name__)
+
+
+def _label_order(key: str) -> int:
+    return FERPLUS_LABELS.index(key) if key in FERPLUS_LABELS else len(FERPLUS_LABELS)
+
+
 FRONTEND_DIST = Path(__file__).resolve().parents[3] / "frontend" / "dist"
 
 
@@ -79,14 +86,14 @@ def create_app(settings: Settings | None = None, engine: BaseEngine | None = Non
         labels = eng().labels
         return {
             "version": __version__,
-            "labels": [
+            "labels": [  # arayüzde her modelde aynı sırada görünsün
                 {
                     "key": k,
                     "label": LABELS_TR.get(k, k),
                     "valence": CIRCUMPLEX.get(k, (0, 0))[0],
                     "arousal": CIRCUMPLEX.get(k, (0, 0))[1],
                 }
-                for k in labels
+                for k in sorted(labels, key=_label_order)
             ],
             "analysis_hz": settings.analysis_hz,
             "history_interval_s": settings.history_interval_s,

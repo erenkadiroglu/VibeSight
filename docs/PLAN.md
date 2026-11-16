@@ -115,8 +115,9 @@ Varsayılan yol yalnızca **FER2013 + FER+** ile başvuru beklemeden tamamlanır
 - **Kalibrasyon:** temperature scaling → olasılıklar arayüzde güvenle kullanılabilir.
 - **Dışa aktarım:** ONNX (opset 17) + onnxruntime ile PyTorch çıktısı eşitlik testi (max fark < 1e-4), isteğe bağlı INT8 kuantizasyon.
 - **Ortam:** Kaggle Notebooks (ücretsiz GPU, haftalık ~30 saat; FER2013 Kaggle'da hazır). Defter `training/notebooks/` altında.
-- **Başlangıç modeli:** kendi modelimiz eğitilene kadar ONNX Model Zoo `emotion-ferplus-8` (MIT) yedek olarak kullanılır;
-  kendi modelimiz bu taban çizgisini geçmek zorundadır.
+- **Canlı test sonucu ve karar (güncelleme):** FER+ modeli webcam'de zayıf kaldı (48×48 gri eğitim verisi ile gerçek
+  görüntü arasındaki alan farkı). Varsayılan ifade modeli **EmotiEffLib `enet_b0_8_va_mtl`** (AffectNet, Apache-2.0)
+  oldu; gerekçe `docs/DATASETS.md`. Kendi modelimiz `VIBESIGHT_EMOTION_MODEL=emotion.onnx` ile seçilebilir.
 
 ### 2.3 Enerji ve dikkat (eğitimsiz, literatüre dayalı sinyaller)
 | Sinyal | Kaynak | Literatür |

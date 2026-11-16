@@ -22,7 +22,8 @@ CROP_TARGET = 288
 @dataclass(slots=True)
 class FaceObservation:
     box: np.ndarray  # yüz kutusu, kare koordinatlarında [x1, y1, x2, y2]
-    aligned_gray: np.ndarray  # hizalanmış, kare, gri yüz kırpıntısı (ifade modeli için)
+    aligned_gray: np.ndarray  # hizalanmış, kare, gri yüz kırpıntısı (FER2013 tarzı modeller için)
+    face_rgb: np.ndarray  # yüz kutusunun renkli kırpıntısı (AffectNet tarzı modeller için)
     eye_blink: float  # 0 açık … 1 kapalı (iki gözün ortalaması)
     jaw_open: float  # 0 … 1
     smile: float  # 0 … 1
@@ -110,6 +111,7 @@ class FaceAnalyzer:
         return FaceObservation(
             box=face_box,
             aligned_gray=self._align(crop, pts),
+            face_rgb=self._box_crop(crop, pts),
             eye_blink=(bs.get("eyeBlinkLeft", 0.0) + bs.get("eyeBlinkRight", 0.0)) / 2,
             jaw_open=bs.get("jawOpen", 0.0),
             smile=(bs.get("mouthSmileLeft", 0.0) + bs.get("mouthSmileRight", 0.0)) / 2,
@@ -117,6 +119,15 @@ class FaceAnalyzer:
             pitch=pitch,
             roll=roll,
         )
+
+    @staticmethod
+    def _box_crop(crop: np.ndarray, pts: np.ndarray) -> np.ndarray:
+        """Yüz noktalarının kapsadığı kutu, RGB (EmotiEffLib modelleri hizalamasız yüz kutusuyla eğitildi)."""
+        h, w = crop.shape[:2]
+        x1, y1 = np.floor(pts.min(axis=0)).astype(int)
+        x2, y2 = np.ceil(pts.max(axis=0)).astype(int)
+        x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
+        return cv2.cvtColor(crop[y1:y2, x1:x2], cv2.COLOR_BGR2RGB)
 
     @staticmethod
     def _align(crop: np.ndarray, pts: np.ndarray, out: int = 128) -> np.ndarray:

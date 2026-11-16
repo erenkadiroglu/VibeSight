@@ -63,6 +63,8 @@ export interface EngineStatus {
   analysis_fps: number
   stream_fps: number
   latency_ms: number
+  detect_fps?: number
+  timings_ms?: Record<string, number>
   privacy_blur: boolean
   uptime_s: number
   models: Record<string, { name: string; loaded: boolean }>

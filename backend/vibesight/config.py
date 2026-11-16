@@ -33,13 +33,15 @@ class Settings(BaseSettings):
     models_dir: Path = BACKEND_DIR / "models"
     detector_model: str = "yolox_s.onnx"
     face_model: str = "face_landmarker.task"
-    emotion_model: str = "emotion.onnx"
+    # Varsayılan: EmotiEffLib enet_b0_8_va_mtl (AffectNet). Kendi FER+ modelimiz için: emotion.onnx
+    emotion_model: str = "enet_b0_8_va_mtl.onnx"
     person_conf: float = 0.45
     min_face_px: int = 40
     max_faces_per_cycle: int = 12
 
     # --- Çalışma hızı ----------------------------------------------------------------------------
-    analysis_hz: float = 6.0
+    detect_hz: float = 6.0  # kişi tespiti (pahalı)
+    analysis_hz: float = 15.0  # yüz + ifade güncellemesi (hızlı)
     stream_fps: float = 15.0
     stream_width: int = 1280
     jpeg_quality: int = 80

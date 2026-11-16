@@ -1,7 +1,8 @@
 """Analiz motoru: kaynak → tespit → takip → yüz → ifade → oda metrikleri.
 
-İki iş parçacığı çalışır:
-  * analiz döngüsü (`analysis_hz`): modelleri çalıştırır, oda anlık görüntüsünü üretir
+Üç iş parçacığı çalışır (ifade, yavaş kişi tespitini beklemez):
+  * tespit döngüsü (`detect_hz`, ~6 Hz): kişi tespiti + takip (en pahalı adım)
+  * analiz döngüsü (`analysis_hz`, ~15 Hz): takipçinin öngördüğü konumlarda yüz + ifade, oda anlık görüntüsü
   * yayın döngüsü (`stream_fps`): en son kareyi (gerekirse yüzleri bulanıklaştırarak) JPEG'e kodlar
 WebSocket istemcileri yalnızca hazır sonuçları okur; istemci sayısı işlem yükünü artırmaz.
 """
@@ -10,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import random
 import threading
 import time
@@ -69,6 +71,7 @@ class BaseEngine:
         self.analysis_rate = RateMeter()
         self.stream_rate = RateMeter()
         self.latency_ms = 0.0
+        self.timings_ms: dict[str, float] = {}  # aşama başına süre (performans teşhisi için)
         self._last_history = 0.0
         self.started_at = time.time()
         self.models: dict[str, dict[str, Any]] = {}
@@ -101,6 +104,7 @@ class BaseEngine:
             "analysis_fps": round(self.analysis_rate.rate, 1),
             "stream_fps": round(self.stream_rate.rate, 1),
             "latency_ms": round(self.latency_ms, 1),
+            "timings_ms": {k: round(v, 1) for k, v in self.timings_ms.items()},
             "privacy_blur": self.privacy_blur,
             "uptime_s": round(time.time() - self.started_at),
             "models": self.models,
@@ -186,11 +190,15 @@ class VisionEngine(BaseEngine):
             if not p.exists():
                 raise FileNotFoundError(f"Model bulunamadı: {p} — önce `make models` çalıştırın.")
 
-        self.detector = PersonDetector(det_path, conf=settings.person_conf, threads=settings.onnx_threads)
+        # İki döngü aynı anda çalıştığı için çekirdekleri paylaştır (aksi hâlde birbirlerini yavaşlatırlar)
+        cpus = os.cpu_count() or 4
+        det_threads = settings.onnx_threads or max(1, cpus // 2)
+        emo_threads = settings.onnx_threads or max(1, cpus // 4)
+        self.detector = PersonDetector(det_path, conf=settings.person_conf, threads=det_threads)
         self.face = FaceAnalyzer(face_path)
         self.emotion: EmotionClassifier | None = None
         if emo_path.exists():
-            self.emotion = EmotionClassifier(emo_path, settings.onnx_threads)
+            self.emotion = EmotionClassifier(emo_path, emo_threads)
             self.labels = self.emotion.labels
         else:
             log.warning("İfade modeli yok (%s); ifade analizi devre dışı.", emo_path.name)
@@ -199,6 +207,10 @@ class VisionEngine(BaseEngine):
         self.aggregator = RoomAggregator(self.labels)
         self.source = FrameSource(settings.resolved_source())
         self._rr = 0  # çok kişi varsa yüz analizini döngüler arasında paylaştırmak için
+        self._tracks_lock = threading.Lock()
+        self._tracks: list[tuple[int, np.ndarray, np.ndarray, float]] = []
+        self._motion: dict[int, float] = {}
+        self.detect_rate = RateMeter()
         self.models = {
             "detector": {"name": det_path.name, "loaded": True},
             "face": {"name": face_path.name, "loaded": True},
@@ -211,6 +223,9 @@ class VisionEngine(BaseEngine):
     def start(self) -> None:
         self.source.start()
         super().start()
+        t = threading.Thread(target=self._detect_loop, name="detect", daemon=True)
+        t.start()
+        self._threads.append(t)
 
     def stop(self) -> None:
         super().stop()
@@ -219,6 +234,7 @@ class VisionEngine(BaseEngine):
 
     def status(self) -> dict[str, Any]:
         base = super().status()
+        base["detect_fps"] = round(self.detect_rate.rate, 1)
         base["source"] = {
             "label": self.source.label,
             "kind": self.source.kind,
@@ -232,6 +248,43 @@ class VisionEngine(BaseEngine):
         f = self.source.latest()
         return (f.image, f.index, f.timestamp) if f else None
 
+    def _tick(self, stage: str, t0: float) -> float:
+        """Aşama süresini kayan ortalamayla kaydeder; bir sonraki aşamanın başlangıcını döndürür."""
+        t1 = time.perf_counter()
+        ms = (t1 - t0) * 1000
+        prev = self.timings_ms.get(stage)
+        self.timings_ms[stage] = ms if prev is None else 0.8 * prev + 0.2 * ms
+        return t1
+
+    # --- 1. döngü: kişi tespiti + takip (yavaş, ~detect_hz) ----------------------------------
+    def _detect_loop(self) -> None:
+        interval = 1.0 / self.settings.detect_hz
+        last_index = -1
+        while not self._stop.is_set():
+            t0 = time.monotonic()
+            frame = self.source.latest()
+            if frame is None or frame.index == last_index or self.source.status != SourceStatus.LIVE:
+                self._stop.wait(0.03)
+                continue
+            last_index = frame.index
+            try:
+                t = time.perf_counter()
+                detections = self.detector(frame.image)
+                t = self._tick("detect", t)
+                now = time.time()
+                tracks = self.tracker.update(detections, now)
+                diff = self.motion.update(frame.image)
+                motion = {tr.id: self.motion.energy(diff, tr.box) for tr in tracks}
+                with self._tracks_lock:
+                    self._tracks = [(tr.id, tr.box.copy(), tr.velocity.copy(), tr.last_seen) for tr in tracks]
+                    self._motion = motion
+                self._tick("track", t)
+                self.detect_rate.tick()
+            except Exception:
+                log.exception("Tespit döngüsünde hata")
+            self._stop.wait(max(0.0, interval - (time.monotonic() - t0)))
+
+    # --- 2. döngü: yüz + ifade (hızlı, ~analysis_hz), takipçinin öngördüğü konumlarda ----------
     def _analysis_loop(self) -> None:
         interval = 1.0 / self.settings.analysis_hz
         last_index = -1
@@ -239,7 +292,7 @@ class VisionEngine(BaseEngine):
             t0 = time.monotonic()
             frame = self.source.latest()
             if frame is None or frame.index == last_index or self.source.status != SourceStatus.LIVE:
-                self._stop.wait(0.05)
+                self._stop.wait(0.02)
                 continue
             last_index = frame.index
             try:
@@ -250,32 +303,37 @@ class VisionEngine(BaseEngine):
             self._stop.wait(max(0.0, interval - (time.monotonic() - t0)))
 
     def _analyze(self, img: np.ndarray, now: float) -> None:
-        detections = self.detector(img)
-        tracks = self.tracker.update(detections, now)
-        diff = self.motion.update(img)
-
-        for t in tracks:
-            self.aggregator.person(t.id, now).observe_motion(self.motion.energy(diff, t.box))
+        with self._tracks_lock:
+            tracks, motion = list(self._tracks), dict(self._motion)
+        # Son tespitten bu yana geçen süre kadar hız ile ileri taşı (en fazla 0.5 sn)
+        boxes = {tid: box + vel * min(max(now - seen, 0.0), 0.5) for tid, box, vel, seen in tracks}
+        for tid, value in motion.items():
+            self.aggregator.person(tid, now).observe_motion(value)
 
         # Büyük kutular (yakın kişiler) önce; kalanlar sonraki döngülerde sırayla
-        order = sorted(tracks, key=lambda t: -(t.box[2] - t.box[0]))
+        order = sorted(boxes, key=lambda tid: -(boxes[tid][2] - boxes[tid][0]))
         limit = self.settings.max_faces_per_cycle
         if len(order) > limit:
             start = self._rr % len(order)
             order = (order[start:] + order[:start])[:limit]
             self._rr += limit
 
+        t = time.perf_counter()
         observations = []
-        for t in order:
-            obs = self.face.analyze(img, t.box, min_face_px=self.settings.min_face_px)
+        for tid in order:
+            obs = self.face.analyze(img, boxes[tid], min_face_px=self.settings.min_face_px)
             if obs is not None:
-                observations.append((t, obs))
+                observations.append((tid, obs))
+        t = self._tick("face", t)
 
-        probs = (
-            self.emotion([o.aligned_gray for _, o in observations]) if self.emotion and observations else None
-        )
-        for i, (t, obs) in enumerate(observations):
-            self.aggregator.person(t.id, now).observe_face(
+        probs = va = None
+        if self.emotion and observations:
+            probs, va = self.emotion.predict(
+                [o.aligned_gray for _, o in observations], [o.face_rgb for _, o in observations]
+            )
+            self._tick("emotion", t)
+        for i, (tid, obs) in enumerate(observations):
+            self.aggregator.person(tid, now).observe_face(
                 now,
                 blink=obs.eye_blink,
                 jaw_open=obs.jaw_open,
@@ -283,11 +341,11 @@ class VisionEngine(BaseEngine):
                 pitch=obs.pitch,
                 box=obs.box,
                 probs=probs[i] if probs is not None else None,
+                va=va[i] if va is not None else None,
             )
 
         h, w = img.shape[:2]
-        snap = self.aggregator.snapshot(now, [t.id for t in tracks], {t.id: t.box for t in tracks}, (w, h))
-        self._publish(snap)
+        self._publish(self.aggregator.snapshot(now, list(boxes), boxes, (w, h)))
 
 
 class MockEngine(BaseEngine):
@@ -353,7 +411,7 @@ class MockEngine(BaseEngine):
             return (self._image, self._index, time.time()) if self._image is not None else None
 
     def _analysis_loop(self) -> None:
-        interval = 1.0 / self.settings.analysis_hz
+        interval = 1.0 / self.settings.detect_hz
         while not self._stop.is_set():
             t0 = time.monotonic()
             self._step(time.time())

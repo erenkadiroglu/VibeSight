@@ -39,7 +39,7 @@ export function AtmospherePanel({ snapshot, series }: { snapshot: Snapshot | nul
 
       <AtmosphereRibbon series={series} />
 
-      <dl className="mt-auto grid grid-cols-3 gap-0 pt-8">
+      <dl className="grid grid-cols-3 gap-0 pt-10">
         <Reading
           icon={<Users className="size-4" aria-hidden />}
           label="Kişi"

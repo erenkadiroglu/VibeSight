@@ -40,6 +40,7 @@ export default function App() {
             status={live.status}
             onPrivacy={live.setPrivacy}
             labels={labels}
+            series={live.series}
           />
           <AtmospherePanel snapshot={live.snapshot} series={live.series} />
         </div>
@@ -129,12 +130,7 @@ function Header({
           />
           {state.label}
         </p>
-        {status && (
-          <p className="hidden text-sm text-chalk-3 lg:block" title="Analiz hızı ve bir karenin işlenme süresi">
-            <span className="numeric text-chalk-2">{num(status.analysis_fps, 1)}</span> analiz/sn,{' '}
-            <span className="numeric text-chalk-2">{num(status.latency_ms)}</span> ms
-          </p>
-        )}
+        {status && <Performance status={status} />}
         <button
           type="button"
           onClick={onTheme}
@@ -146,6 +142,55 @@ function Header({
         </button>
       </div>
     </header>
+  )
+}
+
+const STAGES: [string, string][] = [
+  ['detect', 'Kişi tespiti'],
+  ['track', 'Takip'],
+  ['face', 'Yüz noktaları'],
+  ['emotion', 'İfade modeli'],
+]
+
+/** Üst bilgide hız özeti; tıklanınca her aşamanın süresi (yavaşlığın nedenini görmek için). */
+function Performance({ status }: { status: EngineStatus }) {
+  const t = status.timings_ms ?? {}
+  return (
+    <details className="relative hidden text-sm lg:block">
+      <summary className="flex h-9 cursor-pointer list-none items-center rounded-lg px-2 text-chalk-3 hover:bg-raised hover:text-chalk">
+        <span>
+          Saniyede <span className="numeric text-chalk-2">{num(status.analysis_fps, 0)}</span> güncelleme
+        </span>
+      </summary>
+      <div className="absolute right-0 top-11 z-30 w-72 rounded-xl bg-raised p-4 text-chalk shadow-xl ring-1 ring-line-strong">
+        <p className="font-semibold">Performans</p>
+        <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
+          <dt className="text-chalk-2">İfade güncellemesi</dt>
+          <dd className="numeric">{num(status.analysis_fps, 1)}/sn</dd>
+          {status.detect_fps != null && (
+            <>
+              <dt className="text-chalk-2">Kişi tespiti</dt>
+              <dd className="numeric">{num(status.detect_fps, 1)}/sn</dd>
+            </>
+          )}
+          <dt className="text-chalk-2">Kamera</dt>
+          <dd className="numeric">{num(status.source.fps, 0)} kare/sn</dd>
+        </dl>
+        {Object.keys(t).length > 0 && (
+          <>
+            <p className="mt-4 text-chalk-3">Aşama başına süre</p>
+            <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
+              {STAGES.filter(([k]) => t[k] != null).map(([k, label]) => (
+                <div key={k} className="contents">
+                  <dt className="text-chalk-2">{label}</dt>
+                  <dd className="numeric">{num(t[k])} ms</dd>
+                </div>
+              ))}
+            </dl>
+          </>
+        )}
+      </div>
+    </details>
   )
 }
 

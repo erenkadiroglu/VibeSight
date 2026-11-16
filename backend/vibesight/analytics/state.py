@@ -15,7 +15,7 @@ import numpy as np
 
 from vibesight.analytics.affect import LABELS_TR, valence_arousal
 
-EMOTION_ALPHA = 0.35
+EMOTION_ALPHA = 0.5  # 6 Hz'de ~0.3 sn'lik yumuşatma: tek kare gürültüsünü bastırır, gecikme hissettirmez
 PERCLOS_WINDOW_S = 30.0
 EYES_CLOSED_THRESHOLD = 0.55
 YAWN_THRESHOLD = 0.55
@@ -48,6 +48,7 @@ def ema(prev: float | None, value: float, alpha: float) -> float:
 class PersonState:
     track_id: int
     emotion: np.ndarray | None = None
+    va: np.ndarray | None = None  # modelin doğrudan verdiği (valans, uyarılmışlık), varsa
     yaw: float | None = None
     pitch: float | None = None
     motion: float | None = None
@@ -71,6 +72,7 @@ class PersonState:
         pitch: float,
         box: np.ndarray,
         probs: np.ndarray | None,
+        va: np.ndarray | None = None,
     ) -> None:
         self.last_face_t = now
         self.face_box = box
@@ -80,6 +82,8 @@ class PersonState:
             self.emotion = (
                 probs if self.emotion is None else EMOTION_ALPHA * probs + (1 - EMOTION_ALPHA) * self.emotion
             )
+        if va is not None:
+            self.va = va if self.va is None else EMOTION_ALPHA * va + (1 - EMOTION_ALPHA) * self.va
 
         self._eyes.append((now, blink >= EYES_CLOSED_THRESHOLD))
         while self._eyes and now - self._eyes[0][0] > PERCLOS_WINDOW_S:
@@ -112,15 +116,24 @@ class PersonState:
             return None
         return abs(self.yaw) <= ATTENTION_MAX_YAW and self.pitch >= ATTENTION_MIN_PITCH
 
+    def valence_arousal(self, labels: list[str]) -> tuple[float, float]:
+        """Modelin valans/uyarılmışlık çıktısı; yoksa ifade olasılıklarının çember eşlemesi."""
+        if self.va is not None:
+            return float(self.va[0]), float(self.va[1])
+        if self.emotion is not None:
+            return valence_arousal(self.emotion, labels)
+        return 0.0, 0.0
+
     def energy_components(self, now: float, labels: list[str]) -> dict[str, float] | None:
         """Enerjiyi oluşturan bileşenler (0–1); arayüz bunları kişi ayrıntısında gösterir."""
         if not self.has_face(now):
             return None
-        arousal = valence_arousal(self.emotion, labels)[1] if self.emotion is not None else 0.0
+        arousal = self.valence_arousal(labels)[1]
         return {
             "arousal": (arousal + 1) / 2,
             "motion": clamp01((self.motion or 0.0) / 0.12),
-            "alertness": 1.0 - clamp01(self.perclos / 0.4),
+            # Gözler sık kapansa da 0'a inmez: çok uykulu biri "çok düşük" enerjidedir, "sıfır" değil
+            "alertness": 1.0 - 0.85 * clamp01(self.perclos / 0.4),
             "yawn": 1.0 if self.yawned_recently(now) else 0.0,
         }
 
@@ -210,7 +223,9 @@ class RoomAggregator:
         if with_emotion:
             mean_probs = np.mean([p.emotion for p in with_emotion if p.emotion is not None], axis=0)
             distribution = {lbl: float(v) for lbl, v in zip(self.labels, mean_probs, strict=True)}
-            valence, arousal = valence_arousal(mean_probs, self.labels)
+            vas = [p.valence_arousal(self.labels) for p in with_emotion]
+            valence = float(np.mean([v for v, _ in vas]))
+            arousal = float(np.mean([a for _, a in vas]))
 
         energies = [e for p in faced if (e := p.energy(now, self.labels)) is not None]
         energy = float(np.mean(energies)) if energies else None
@@ -271,6 +286,7 @@ class RoomAggregator:
                     "yaw": round(p.yaw, 1) if p.yaw is not None else None,
                     "pitch": round(p.pitch, 1) if p.pitch is not None else None,
                     "yawns": p.yawns,
+                    "valence": round(p.valence_arousal(self.labels)[0], 3),
                     **({k: round(v, 3) for k, v in comps.items()} if comps else {}),
                 }
             people_out.append(item)

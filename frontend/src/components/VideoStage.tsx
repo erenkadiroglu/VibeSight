@@ -1,9 +1,10 @@
 import clsx from 'clsx'
 import { EyeOff, Maximize2, ScanFace, Square, Video, WifiOff } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Connection } from '../lib/live'
 import { num } from '../lib/format'
-import type { EngineStatus, LabelMeta, Snapshot } from '../lib/types'
+import type { EngineStatus, LabelMeta, Point, Snapshot } from '../lib/types'
+import { FullscreenHud } from './FullscreenHud'
 import { PersonDetail } from './PersonDetail'
 
 interface Props {
@@ -14,13 +15,17 @@ interface Props {
   status: EngineStatus | null
   onPrivacy: (on: boolean) => void
   labels: LabelMeta[]
+  series: Point[]
 }
 
-export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, onPrivacy, labels }: Props) {
+export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, onPrivacy, labels, series }: Props) {
   const [overlay, setOverlay] = useState(true)
   const [selected, setSelected] = useState<number | null>(null)
   const stage = useRef<HTMLDivElement>(null)
+  const area = useRef<HTMLDivElement>(null)
   const aspect = frameSize ? frameSize.w / frameSize.h : 16 / 9
+  const fs = useFullscreen(stage)
+  const fit = useFitBox(area, aspect, fs.active)
   const privacy = status?.privacy_blur ?? false
   const source = status?.source
   const live = connection === 'open' && source?.status === 'live' && frameUrl
@@ -29,9 +34,19 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
     <section aria-label="Canlı görüntü" className="relative flex flex-col gap-3">
       <div
         ref={stage}
-        className="relative w-full overflow-hidden rounded-2xl bg-[var(--video-bg)] ring-1 ring-line"
-        style={{ aspectRatio: aspect }}
+        data-theme={fs.active ? 'dark' : undefined}
+        className={
+          fs.active
+            ? 'flex h-full w-full bg-[var(--video-bg)] text-chalk'
+            : 'relative w-full overflow-hidden rounded-2xl bg-[var(--video-bg)] ring-1 ring-line'
+        }
+        style={fs.active ? undefined : { aspectRatio: aspect }}
       >
+        <div ref={area} className={fs.active ? 'flex min-w-0 flex-1 items-center justify-center p-6' : 'absolute inset-0'}>
+          <div
+            className={clsx('relative overflow-hidden', fs.active ? 'rounded-xl' : 'h-full w-full')}
+            style={fs.active ? { width: fit.w, height: fit.h } : undefined}
+          >
         {frameUrl && (
           <img
             src={frameUrl}
@@ -91,12 +106,14 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
         )}
 
         {selected != null && live && (
-          <PersonDetail
-            id={selected}
-            person={snapshot?.people.find((p) => p.id === selected)}
-            labels={labels}
-            onClose={() => setSelected(null)}
-          />
+          <div className="hidden sm:block">
+            <PersonDetail
+              id={selected}
+              person={snapshot?.people.find((p) => p.id === selected)}
+              labels={labels}
+              onClose={() => setSelected(null)}
+            />
+          </div>
         )}
 
         {!live && <StageMessage connection={connection} sourceStatus={source?.status} hasFrame={!!frameUrl} />}
@@ -106,19 +123,33 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
             Demo verisi, kamera bağlı değil
           </div>
         )}
+          </div>
+        </div>
+        {fs.active && <FullscreenHud snapshot={snapshot} series={series} labels={labels} status={status} />}
       </div>
+
+      {selected != null && live && !fs.active && (
+        <div className="sm:hidden">
+          <PersonDetail
+            id={selected}
+            person={snapshot?.people.find((p) => p.id === selected)}
+            labels={labels}
+            onClose={() => setSelected(null)}
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-chalk-2">
         <div className="flex min-w-0 items-center gap-2">
           <Video className="size-4 shrink-0 text-chalk-3" aria-hidden />
           <span className="truncate">{source?.label ?? 'Kaynak bekleniyor'}</span>
-          {live && overlay && (snapshot?.people.length ?? 0) > 0 && selected == null && (
-            <span className="hidden shrink-0 text-chalk-3 md:inline">Ayrıntı için bir kutuya tıklayın</span>
-          )}
           {source?.resolution && (
             <span className="numeric shrink-0 text-chalk-3">
               {source.resolution[0]}×{source.resolution[1]}
             </span>
+          )}
+          {live && overlay && (snapshot?.people.length ?? 0) > 0 && selected == null && (
+            <span className="hidden shrink-0 border-l border-line pl-2 text-chalk-3 lg:inline">Ayrıntı için bir kutuya tıklayın</span>
           )}
         </div>
         <div className="flex items-center gap-1" role="group" aria-label="Görüntü seçenekleri">
@@ -130,12 +161,12 @@ export function VideoStage({ connection, frameUrl, frameSize, snapshot, status, 
           </ToggleButton>
           <button
             type="button"
-            onClick={() => void stage.current?.requestFullscreen?.()}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-chalk-2 hover:bg-raised hover:text-chalk"
-            aria-label="Tam ekran"
-            title="Tam ekran"
+            onClick={fs.toggle}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-chalk-2 hover:bg-raised hover:text-chalk"
+            title="Tam ekran: görüntü ve canlı veriler (kısayol: F)"
           >
-            <Maximize2 className="size-4" />
+            <Maximize2 className="size-4" aria-hidden />
+            Tam ekran
           </button>
         </div>
       </div>
@@ -194,7 +225,7 @@ function StageMessage({
   let body = 'Analiz sunucusu başlatılıyor. Birkaç saniye sürebilir.'
   if (connection === 'closed') {
     title = 'Sunucuya ulaşılamıyor'
-    body = 'Arka uç çalışmıyor olabilir. Terminalde `make dev` komutunu çalıştırın; bağlantı otomatik yenilenecek.'
+    body = 'Arka uç çalışmıyor olabilir. PowerShell\'de .\\vs.ps1 dev komutunu çalıştırın; bağlantı kendiliğinden yenilenecek.'
   } else if (connection === 'open' && sourceStatus === 'reconnecting') {
     title = 'Kameraya yeniden bağlanılıyor'
     body = 'Kamera ile aynı Wi-Fi ağında olduğunuzu ve .env dosyasındaki IP, kullanıcı adı ve şifrenin doğru olduğunu kontrol edin.'
@@ -219,4 +250,49 @@ function StageMessage({
       <p className="max-w-md text-sm text-white/65">{body}</p>
     </div>
   )
+}
+
+/** Tam ekran durumu + F kısayolu. */
+function useFullscreen(target: React.RefObject<HTMLElement | null>) {
+  const [active, setActive] = useState(false)
+  useEffect(() => {
+    const onChange = () => setActive(document.fullscreenElement === target.current)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [target])
+  const toggle = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void target.current?.requestFullscreen?.()
+  }, [target])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey) return
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
+      toggle()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [toggle])
+  return { active, toggle }
+}
+
+/** Tam ekranda görüntüyü oranını bozmadan alana sığdırır (kutular görüntüyle hizalı kalsın). */
+function useFitBox(area: React.RefObject<HTMLElement | null>, aspect: number, enabled: boolean) {
+  const [box, setBox] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    if (!enabled || !area.current) return
+    const el = area.current
+    const update = () => {
+      const cs = getComputedStyle(el)
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      setBox(w / h > aspect ? { w: h * aspect, h } : { w, h: w / aspect })
+    }
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    update()
+    return () => ro.disconnect()
+  }, [area, aspect, enabled])
+  return box
 }

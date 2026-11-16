@@ -25,22 +25,23 @@ MODELS = [
         "url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
         "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
     },
-    {  # Taban ifade modeli (kendi modelimiz eğitilene kadar) — MIT — ONNX Model Zoo
-        "file": "emotion.onnx",
-        "url": "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx",
-        "sha256": None,
+    # İfade + valans/uyarılmışlık — Apache-2.0 — github.com/sb-ai-lab/EmotiEffLib (Savchenko, IEEE TAC 2022)
+    {
+        "file": "enet_b0_8_va_mtl.onnx",
+        "url": "https://raw.githubusercontent.com/sb-ai-lab/EmotiEffLib/main/models/affectnet_emotions/onnx/enet_b0_8_va_mtl.onnx",
+        "sha256": "c43e056ad388d4a8dc911832b8291435b2af537f967e5870ebd731574ec7e812",
         "meta": {
-            "name": "emotion-ferplus-8 (taban)",
-            "labels": ["neutral", "happiness", "surprise", "sadness", "anger", "disgust", "fear", "contempt"],
-            "input_size": 64,
-            "channels": 1,
-            "mean": [0.0],
-            "std": [1.0],
-            "scale": 1.0,
+            "name": "EmotiEffLib enet_b0_8_va_mtl (AffectNet)",
+            "labels": ["anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"],
+            "input_size": 224,
+            "channels": 3,
+            "color": True,
+            "va_outputs": True,
+            "mean": [0.485, 0.456, 0.406],
+            "std": [0.229, 0.224, 0.225],
+            "scale": 255.0,
             "temperature": 1.0,
         },
-        "optional": True,
-        "keep_existing": True,  # kendi eğittiğimiz model varsa üzerine yazma
     },
 ]
 
@@ -53,6 +54,13 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def write_meta(m: dict, dest: Path) -> None:
+    """Modelin tanım dosyasını (ön işleme, etiketler) yazar; var olan tanıma dokunmaz."""
+    meta_path = dest.with_suffix(".json")
+    if "meta" in m and not meta_path.exists():
+        meta_path.write_text(json.dumps(m["meta"], ensure_ascii=False, indent=2), "utf-8")
+
+
 def main() -> int:
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     failed = False
@@ -60,6 +68,7 @@ def main() -> int:
         dest = MODELS_DIR / m["file"]
         if dest.exists() and (m.get("keep_existing") or (m["sha256"] and sha256(dest) == m["sha256"])):
             print(f"✓ {m['file']} zaten var")
+            write_meta(m, dest)
             continue
         print(f"↓ {m['file']} indiriliyor…")
         tmp = dest.with_suffix(dest.suffix + ".part")
@@ -69,10 +78,7 @@ def main() -> int:
             if m["sha256"] and sha256(tmp) != m["sha256"]:
                 raise ValueError("SHA-256 uyuşmuyor")
             tmp.replace(dest)
-            if "meta" in m:
-                dest.with_suffix(".json").write_text(
-                    json.dumps(m["meta"], ensure_ascii=False, indent=2), "utf-8"
-                )
+            write_meta(m, dest)
             print(f"✓ {m['file']} hazır")
         except Exception as exc:
             tmp.unlink(missing_ok=True)

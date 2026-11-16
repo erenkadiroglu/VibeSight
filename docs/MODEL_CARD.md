@@ -1,4 +1,9 @@
-# Model kartı — VibeSight ifade sınıflandırıcısı
+# Model kartı — VibeSight ifade sınıflandırıcısı (FER+)
+
+> **Güncel durum:** Varsayılan ifade modeli artık EmotiEffLib `enet_b0_8_va_mtl` (AffectNet). Bu kart, alternatif olarak
+> seçilebilen ve kendi eğittiğimiz FER+ modelini belgeler. Geçiş gerekçesi: `DATASETS.md`.
+> Canlı webcam testinde bu model ifadeleri zayıf yakaladı; FER2013'ün 48×48 gri, poz verilmiş görüntüleri ile
+> gerçek kamera görüntüsü arasındaki alan farkı (domain gap) bunun ana nedenidir.
 
 > Bu kart eğitim tamamlandığında `training/train.py` çıktısındaki `metrics.json` değerleriyle güncellenir.
 
