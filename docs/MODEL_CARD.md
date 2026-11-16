@@ -15,7 +15,12 @@
 | Biçim | ONNX (opset 17), PyTorch ile çıktı farkı < 1e-3 doğrulanır |
 
 ## Sonuçlar
-*Eğitim sonrası doldurulacak.*
+| Deneme | Ayarlar | Doğrulama (en iyi) | Test doğruluk | Test macro-F1 | ECE |
+|---|---|---|---|---|---|
+| 1 | ConvNeXt-Tiny, 35 epoch, EMA yok | %84.99 (13. epoch) | %83.64 | 0.704 | 0.025 |
+| 2 | ConvNeXt-Tiny, 20 epoch, EMA 0.998 | *çalışıyor* | | | |
+
+Deneme 1'de doğrulama doğruluğu 13. epoch'tan sonra yükselmedi; deneme 2'de eğitim kısaltıldı ve ağırlık ortalaması (EMA) eklendi.
 
 ## Bilinen sınırlamalar
 - FER2013 düşük çözünürlüklü, ağırlıklı olarak web'den toplanmış, poz verilmiş ifadeler içerir;

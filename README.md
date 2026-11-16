@@ -71,7 +71,7 @@ Kamerayı bağlamak için: [docs/CAMERA_SETUP.md](docs/CAMERA_SETUP.md), ardınd
 `VIBESIGHT_SOURCE` değeri: `mock`, `tapo`, `0` (bilgisayar kamerası), `rtsp://…` veya bir video dosyası yolu.
 
 ## İfade modelini eğitmek
-Kaggle'ın ücretsiz GPU'sunda yaklaşık 45 dakika sürer: [training/README.md](training/README.md).
+Kaggle'ın ücretsiz GPU'sunda yaklaşık 25 dakika sürer: [training/README.md](training/README.md).
 Eğitilen model gelene kadar ONNX Model Zoo'daki `emotion-ferplus-8` taban modeli kullanılır.
 
 ## Mimari

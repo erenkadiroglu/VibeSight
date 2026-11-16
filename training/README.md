@@ -6,7 +6,7 @@
 3. Sağ panelde: **Accelerator: GPU T4 x2**, **Internet: On**.
 4. **+ Add Input** → `deadskull7/fer2013` veri setini ekleyin.
 5. İlk hücredeki `REPO_URL` repoyu gösterir (fork kullanıyorsanız kendi adresinizle değiştirin).
-6. **Run All**. Bittiğinde *Output* bölümünden `vibesight-emotion.zip` dosyasını indirin.
+6. Sağ üstte **Save Version → Save & Run All (Commit)**. Arka planda çalışır; bittiğinde defter sayfasının **Output** sekmesinden `vibesight-emotion.zip` dosyasını indirin.
 7. Zip içindeki `emotion.onnx` ve `emotion.json` dosyalarını `backend/models/` klasörüne kopyalayın.
 
 ## Yerelde (NVIDIA GPU varsa)

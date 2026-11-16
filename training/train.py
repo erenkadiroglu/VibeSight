@@ -1,7 +1,7 @@
 """Yüz ifadesi modeli eğitimi: FER2013 + FER+ → timm omurgası → kalibre edilmiş ONNX.
 
 Örnek (Kaggle GPU):
-    python train.py --fer2013 /kaggle/input/fer2013/fer2013.csv --model convnext_tiny.fb_in22k --epochs 35
+    python train.py --fer2013 /kaggle/input/fer2013/fer2013.csv --model convnext_tiny.fb_in22k --epochs 20
 
 Çıktılar (`--out` klasörü):
     best.pt · emotion.onnx · emotion.json (backend'in okuduğu tanım) · metrics.json · confusion.png · history.csv
@@ -23,6 +23,7 @@ import timm
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix, f1_score
+from timm.utils import ModelEmaV3
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.transforms import v2
@@ -210,7 +211,7 @@ def main() -> None:
     ap.add_argument("--ferplus", default=FERPLUS_URL, help="fer2013new.csv yolu veya URL")
     ap.add_argument("--model", default="convnext_tiny.fb_in22k")
     ap.add_argument("--size", type=int, default=112)
-    ap.add_argument("--epochs", type=int, default=35)
+    ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--batch", type=int, default=128)
     ap.add_argument("--lr", type=float, default=4e-4)
     ap.add_argument("--wd", type=float, default=0.05)
@@ -219,6 +220,7 @@ def main() -> None:
     ap.add_argument("--mixup", type=float, default=0.2, help="0 = kapalı")
     ap.add_argument("--mixup-prob", type=float, default=0.3)
     ap.add_argument("--drop-path", type=float, default=0.1)
+    ap.add_argument("--ema-decay", type=float, default=0.998, help="0 = EMA kapalı")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--limit", type=int, default=0, help="duman testi için örnek sınırı")
@@ -270,6 +272,9 @@ def main() -> None:
         ),
     )
     scaler = torch.amp.GradScaler(enabled=device.type == "cuda")
+    # Ağırlıkların üstel hareketli ortalaması: doğrulama dalgalanmasını azaltır, genellemeyi iyileştirir
+    ema = ModelEmaV3(model, decay=args.ema_decay, use_warmup=True) if args.ema_decay else None
+    step = 0
 
     best, history = -1.0, []
     for epoch in range(1, args.epochs + 1):
@@ -288,14 +293,23 @@ def main() -> None:
             scaler.step(opt)
             scaler.update()
             sched.step()
+            step += 1
+            if ema is not None:
+                ema.update(model, step=step)
             run_loss += loss.item() * len(x)
             n += len(x)
 
-        val = metrics(*predict(model, loaders["val"], device))
+        # Hem ham hem EMA ağırlıklarını değerlendir, daha iyi olanı aday olarak tut
+        candidates = {"ham": model} | ({"ema": ema.module} if ema is not None else {})
+        scores = {name: metrics(*predict(m, loaders["val"], device)) for name, m in candidates.items()}
+        pick = max(scores, key=lambda k: scores[k]["accuracy"])
+        val = scores[pick]
         row = {
             "epoch": epoch,
             "train_loss": run_loss / max(n, 1),
             **{f"val_{k}": v for k, v in val.items()},
+            **({"val_accuracy_raw": scores["ham"]["accuracy"]} if ema is not None else {}),
+            "weights": pick,
             "lr": opt.param_groups[0]["lr"],
             "sec": time.time() - t0,
         }
@@ -304,12 +318,18 @@ def main() -> None:
         if val["accuracy"] > best:
             best = val["accuracy"]
             torch.save(
-                {"model": model.state_dict(), "args": {k: str(v) for k, v in vars(args).items()}}, args.out / "best.pt"
+                {
+                    "model": candidates[pick].state_dict(),
+                    "weights": pick,
+                    "args": {k: str(v) for k, v in vars(args).items()},
+                },
+                args.out / "best.pt",
             )
-            flag = " ★"
+            flag = f" ★ ({pick})"
         print(
             f"[{epoch:02d}/{args.epochs}] loss {row['train_loss']:.4f} · val acc {val['accuracy']:.4f} "
             f"· F1 {val['macro_f1']:.4f} · {row['sec']:.0f}s{flag}"
+            + (f"  [ham {scores['ham']['accuracy']:.4f}]" if ema is not None else "")
         )
         pd.DataFrame(history).to_csv(args.out / "history.csv", index=False)
 
