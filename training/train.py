@@ -169,16 +169,16 @@ def export_onnx(model: nn.Module, size: int, out: Path, temperature: float, info
     model = model.eval().cpu().float()
     dummy = torch.randn(2, 3, size, size)
     onnx_path = out / "emotion.onnx"
-    torch.onnx.export(
-        model,
-        dummy,
-        onnx_path,
-        input_names=["input"],
-        output_names=["logits"],
-        dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
-        opset_version=17,
-        dynamo=False,
-    )
+    export_kwargs = {
+        "input_names": ["input"],
+        "output_names": ["logits"],
+        "dynamic_axes": {"input": {0: "batch"}, "logits": {0: "batch"}},
+        "opset_version": 17,
+    }
+    try:  # PyTorch ≥ 2.5: klasik (TorchScript) dışa aktarıcıyı açıkça seç
+        torch.onnx.export(model, dummy, onnx_path, dynamo=False, **export_kwargs)
+    except TypeError:  # daha eski sürümlerde `dynamo` parametresi yok
+        torch.onnx.export(model, dummy, onnx_path, **export_kwargs)
     sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
     with torch.no_grad():
         ref = model(dummy).numpy()
