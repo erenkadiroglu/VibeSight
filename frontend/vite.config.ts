@@ -7,8 +7,6 @@ const backend = process.env.VIBESIGHT_BACKEND ?? 'http://127.0.0.1:8000'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    port: 5173,
-    strictPort: true, // port doluysa sessizce başka porta kaymak yerine hata ver
     proxy: {
       '/api': backend,
       '/ws': { target: backend.replace(/^http/, 'ws'), ws: true },

@@ -50,22 +50,29 @@ function Stop-VibeSight {
     Ok "Önceki VibeSight süreçleri kapatıldı ($($procs.Count))."
     Start-Sleep -Seconds 1
   }
-  foreach ($port in 8000, 5173) {
-    $busy = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-    if ($busy) {
-      $owner = (Get-Process -Id $busy[0].OwningProcess -ErrorAction SilentlyContinue).ProcessName
-      Fail "$port portu başka bir uygulama tarafından kullanılıyor ($owner). O uygulamayı kapatıp tekrar deneyin."
-      exit 1
-    }
-  }
 }
 
-function Start-Backend([string]$source) {
+function Get-FreePort([int]$start) {
+  # Diğer projelerinizin portlarına dokunmamak için ilk boş portu seçer.
+  for ($p = $start; $p -lt $start + 50; $p++) {
+    if (-not (Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue)) { return $p }
+  }
+  throw "$start-$($start + 49) aralığında boş port bulunamadı."
+}
+
+function Start-Backend([string]$source, [int]$port) {
   $cmd = "Set-Location '$Backend'; "
   if ($source) { $cmd += "`$env:VIBESIGHT_SOURCE='$source'; " }
-  $cmd += "uv run vibesight"
+  $cmd += "uv run vibesight --port $port"
   Start-Process powershell -ArgumentList '-NoExit', '-Command', $cmd | Out-Null
-  Ok 'Arka uç yeni bir pencerede başlatıldı (kapatmak için o pencereyi kapatın).'
+  Ok "Arka uç yeni bir pencerede başlatıldı (port $port). Kapatmak için: .\vs.ps1 stop"
+}
+
+function Start-Frontend([int]$backendPort) {
+  # Vite boş bir port seçer ve tarayıcıyı doğru adreste kendisi açar.
+  $env:VIBESIGHT_BACKEND = "http://127.0.0.1:$backendPort"
+  Start-Sleep -Seconds 3
+  Invoke-In $Frontend { npm run dev:open }
 }
 
 switch ($Task) {
@@ -75,9 +82,9 @@ VibeSight komutları:
   .\vs.ps1 doctor       Gerekli araçlar kurulu mu kontrol eder
   .\vs.ps1 setup        Bağımlılıkları kurar, modelleri indirir, .env oluşturur
   .\vs.ps1 models       Modelleri indirir / doğrular
-  .\vs.ps1 demo         Kamerasız demo (http://localhost:5173)
+  .\vs.ps1 demo         Kamerasız demo (tarayıcı kendiliğinden açılır)
   .\vs.ps1 dev          Kamera veya webcam ile geliştirme modu
-  .\vs.ps1 serve        Derlenmiş arayüzle tek port (http://127.0.0.1:8000)
+  .\vs.ps1 serve        Derlenmiş arayüzle tek port (tarayıcı kendiliğinden açılır)
   .\vs.ps1 stop         Çalışan VibeSight süreçlerini kapatır
   .\vs.ps1 camera-test  Tapo kamera bağlantısını test eder
   .\vs.ps1 check        Lint + tip kontrolü + test + derleme
@@ -113,25 +120,24 @@ VibeSight komutları:
   'demo' {
     Step 'Demo modu'
     Stop-VibeSight
-    Start-Backend 'mock'
-    Start-Sleep -Seconds 3
-    Start-Process 'http://localhost:5173'
-    Invoke-In $Frontend { npm run dev }
+    $port = Get-FreePort 8000
+    Start-Backend 'mock' $port
+    Start-Frontend $port
   }
   'dev' {
     Step 'Geliştirme modu (.env içindeki kaynak)'
     Stop-VibeSight
-    Start-Backend ''
-    Start-Sleep -Seconds 3
-    Start-Process 'http://localhost:5173'
-    Invoke-In $Frontend { npm run dev }
+    $port = Get-FreePort 8000
+    Start-Backend '' $port
+    Start-Frontend $port
   }
   'serve' {
     Stop-VibeSight
     Step 'Arayüz derleniyor'
     Invoke-In $Frontend { npm run build }
-    Start-Process 'http://127.0.0.1:8000'
-    Invoke-In $Backend { uv run vibesight }
+    $port = Get-FreePort 8000
+    Start-Process "http://127.0.0.1:$port"
+    Invoke-In $Backend { uv run vibesight --port $port }
   }
   'stop' {
     Stop-VibeSight
