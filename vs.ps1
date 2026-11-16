@@ -101,6 +101,8 @@ VibeSight komutları:
     if ($ok) { Ok 'Her şey hazır.' } else { Write-Host "`nKurduktan sonra PowerShell'i kapatıp yeniden açın." }
   }
   'setup' {
+    # Çalışan bir VibeSight, güncellenecek dosyaları kilitler (Windows: os error 32)
+    Stop-VibeSight
     Step 'Python bağımlılıkları (uv sync)'
     Invoke-In $Backend { uv sync }
     Step 'Arayüz bağımlılıkları (npm ci)'
@@ -114,6 +116,7 @@ VibeSight komutları:
     Ok 'Kurulum tamamlandı. Şimdi: .\vs.ps1 demo'
   }
   'models' {
+    Stop-VibeSight
     Step 'Modeller indiriliyor'
     Invoke-In $Backend { uv run python ..\scripts\download_models.py }
   }
